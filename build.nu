@@ -48,5 +48,5 @@ for target_name in ($targets | columns) {
     # Copy manifest file
     cp $"($src_dir)/($manifest_file)" $"($out_path)/manifest.json"
 
-    print $"✅ Built (ansi cyan_bold)($target_name | str upcase)(ansi reset) extension in (ansi green_bold)($out_path)(ansi reset)"
+    print $"✅ Built (ansi cyan_bold)($target_name | str upcase)(ansi reset) extension in (ansi green_bold)'($out_path)'(ansi reset)"
 }
