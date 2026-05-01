@@ -81,7 +81,7 @@ When you navigate away from a video/music page, a CLEAR action is sent:
 
 ### Building
 
-The project uses a Nix build script (`build.nu`) to compile and package the extension for both Chrome and Firefox.
+The project uses a Nushell build script (`build.nu`) to compile and package the extension for both Chrome and Firefox.
 
 ```bash
 # Build both Chrome and Firefox versions
@@ -122,7 +122,7 @@ enoact/
 │       ├── youtube.ts          # YouTube content script
 │       └── youtube-music.ts    # YouTube Music content script
 ├── dist/                       # Built extensions (generated)
-├── build.nu                    # Build script (Nix)
+├── build.nu                    # Build script (Nushell)
 ├── LICENSE                     # Apache 2.0 license
 └── README.md                   # This file
 ```
