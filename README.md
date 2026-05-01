@@ -2,7 +2,7 @@
 
 **Show what you're doing to others!**
 
-Enoact is a browser extension that integrates with YouTube and YouTube Music to share your activity with other applications via WebSocket. Display what you're watching or listening to in real-time to Discord, streaming overlays, or any other application that can connect to the WebSocket server.
+Browser Extension for [Enoact Core](https://github.com/Lebenoa/Enoact)
 
 ## Features
 
