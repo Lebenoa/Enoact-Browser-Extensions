@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Lebact",
+    "name": "Enoact",
     "description": "Show what you're doing to others!",
     "version": "1.0",
     "permissions": [
@@ -8,7 +8,8 @@
         "tabs"
     ],
     "host_permissions": [
-        "https://www.youtube.com/*"
+        "https://www.youtube.com/*",
+        "https://music.youtube.com/*"
     ],
     "content_scripts": [
         {
@@ -18,9 +19,17 @@
             "js": [
                 "youtube.js"
             ]
+        },
+        {
+            "matches": [
+                "https://music.youtube.com/*"
+            ],
+            "js": [
+                "youtube-music.js"
+            ]
         }
     ],
     "action": {
-        "default_title": "Lebact"
+        "default_title": "Enoact"
     }
 }
