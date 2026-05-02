@@ -57,27 +57,19 @@ async function saveSettings(settings: Partial<Settings>): Promise<void> {
     }
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    if (changeInfo.status !== 'complete') return
-    if (!tab || !tab.url) return
-    if (injectedTabId.has(tabId)) return
-
-    console.log(changeInfo, tab);
-
+chrome.webNavigation.onCommitted.addListener(async (details) => {
     const settings = await getSettings();
-    const url = new URL(tab.url);
+    const url = new URL(details.url);
     const siteSetting = settings[url.host as keyof Settings];
     if (!siteSetting) return
     const isContentEnabled: boolean = siteSetting?.enabled ?? false;
     if (!isContentEnabled) return
 
-    injectedTabId.add(tabId)
-
     chrome.scripting.executeScript({
-        target: { tabId },
+        target: { tabId: details.tabId },
         files: [siteSetting.script],
     })
-});
+})
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log(message, sender);

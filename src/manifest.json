@@ -43,14 +43,14 @@
     },
     "chromium:permissions": [
         "sidePanel",
-        "activeTab",
-        "scripting",
-        "storage"
-    ],
-    "firefox:permissions": [
-        "activeTab",
         "scripting",
         "storage",
+        "webNavigation"
+    ],
+    "firefox:permissions": [
+        "scripting",
+        "storage",
+        "webNavigation",
         "*://www.youtube.com/*",
         "*://music.youtube.com/*"
     ],
