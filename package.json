@@ -1,0 +1,31 @@
+{
+    "private": true,
+    "name": "enoact-v2",
+    "description": "Show what you're doing to others from your browser!",
+    "version": "2.0.0",
+    "license": "MIT",
+    "type": "module",
+    "author": {
+        "name": "Lebenoa",
+        "email": "admin@lebenoa.com",
+        "url": "https://lebenoa.com"
+    },
+    "dependencies": {
+        "svelte": "^5.15.0"
+    },
+    "devDependencies": {
+        "@tsconfig/svelte": "5.0.8",
+        "extension": "^3.14.5",
+        "typescript": "6.0.3",
+        "unocss": "^66.6.8"
+    },
+    "scripts": {
+        "dev": "extension dev",
+        "start": "extension start",
+        "build": "extension build",
+        "preview": "extension preview",
+        "build:chrome": "extension build --browser chrome",
+        "build:firefox": "extension build --browser firefox",
+        "build:edge": "extension build --browser edge"
+    }
+}

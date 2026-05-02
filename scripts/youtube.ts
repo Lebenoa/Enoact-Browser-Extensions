@@ -1,6 +1,6 @@
-function initYouTube() {
+export default function initYouTube() {
     let websocketConnection: WebSocket | undefined;
-    let updateInterval: number | undefined;
+    let updateInterval: number | NodeJS.Timeout | undefined;
     let isCleared: boolean;
     let reconnectAttempts = 0;
 
@@ -151,5 +151,3 @@ function initYouTube() {
         };
     }
 }
-
-initYouTube();
