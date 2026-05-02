@@ -3,7 +3,7 @@
     "name": "enoact-v2",
     "description": "Show what you're doing to others from your browser!",
     "version": "2.0.0",
-    "license": "MIT",
+    "license": "Apache-2.0",
     "type": "module",
     "author": {
         "name": "Lebenoa",
