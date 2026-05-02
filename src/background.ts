@@ -18,6 +18,7 @@ const defaultSettings = {
 type Settings = typeof defaultSettings
 
 let storage: typeof browser.storage | typeof chrome.storage;
+let injectedTabId = new Set();
 
 if (isFirefoxLike) {
     storage = browser.storage;
@@ -56,11 +57,10 @@ async function saveSettings(settings: Partial<Settings>): Promise<void> {
     }
 }
 
-
-
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (changeInfo.status !== 'complete') return
     if (!tab || !tab.url) return
+    if (injectedTabId.has(tabId)) return
 
     console.log(changeInfo, tab);
 
@@ -70,6 +70,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (!siteSetting) return
     const isContentEnabled: boolean = siteSetting?.enabled ?? false;
     if (!isContentEnabled) return
+
+    injectedTabId.add(tabId)
 
     chrome.scripting.executeScript({
         target: { tabId },

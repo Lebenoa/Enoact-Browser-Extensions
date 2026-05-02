@@ -17,8 +17,8 @@ export default function initYouTube() {
         }
 
         websocketConnection = new WebSocket("ws://127.0.0.1:5579/ws");
-        websocketConnection.addEventListener("error", () => {
-            console.error("WebSocket connection error")
+        websocketConnection.addEventListener("error", (e) => {
+            console.error("WebSocket connection error", e)
             websocketConnection = undefined;
             if (updateInterval) {
                 clearInterval(updateInterval);
@@ -26,8 +26,8 @@ export default function initYouTube() {
             }
             attemptReconnect();
         })
-        websocketConnection.addEventListener("close", () => {
-            console.error("WebSocket connection error")
+        websocketConnection.addEventListener("close", (e) => {
+            console.log("WebSocket connection close: ", e)
             websocketConnection = undefined;
             if (updateInterval) {
                 clearInterval(updateInterval);

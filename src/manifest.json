@@ -37,6 +37,7 @@
         "default_title": "Enoact Settings"
     },
     "firefox:sidebar_action": {
+        "default_icon": "images/icon.png",
         "default_panel": "sidebar/index.html",
         "default_title": "Enoact Settings"
     },
