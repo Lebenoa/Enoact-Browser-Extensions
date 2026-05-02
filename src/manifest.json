@@ -34,11 +34,11 @@
     },
     "chromium:side_panel": {
         "default_path": "sidebar/index.html",
-        "default_title": "Side Panel Content"
+        "default_title": "Enoact Settings"
     },
     "firefox:sidebar_action": {
         "default_panel": "sidebar/index.html",
-        "default_title": "Side Panel Content"
+        "default_title": "Enoact Settings"
     },
     "chromium:permissions": [
         "sidePanel",
