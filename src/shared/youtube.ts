@@ -64,7 +64,7 @@ function initYouTube() {
                                 large_image: info.thumbnail,
                                 large_text: info.title,
                                 large_url: info.url,
-                                small_image: info.channel_thumbnail,
+                                small_image: info.channel_thumbnail ? info.channel_thumbnail : undefined,
                                 small_text: info.channel ? info.channel : "<BLANK>",
                                 small_url: info.channel_url,
                             },
