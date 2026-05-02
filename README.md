@@ -31,7 +31,3 @@ bun run build --browser chrome,firefox          # All browsers
 - `scripting` - Script injection
 - `storage` - Settings persistence
 - `webNavigation` - Navigation detection
-
-## License
-
-MIT
