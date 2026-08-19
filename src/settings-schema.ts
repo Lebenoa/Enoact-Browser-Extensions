@@ -20,7 +20,8 @@ type FieldBase = {
 
 export type SettingsField =
     | (FieldBase & { type: 'boolean'; default: boolean })
-    | (FieldBase & { type: 'select'; default: number; options: FieldOption[] });
+    | (FieldBase & { type: 'select'; default: number; options: FieldOption[] })
+    | (FieldBase & { type: 'number'; default: number; min: number; max: number; step: number; unit?: string });
 
 export type SiteSchema = {
     // Human-facing name; the record key stays the matched hostname.
@@ -41,6 +42,22 @@ const enabledField: SettingsField = {
     label: 'Enabled',
     description: 'Disable/enable the extension on this site',
     default: true,
+};
+
+// How often the presence client re-reads the page and pushes an update. Too
+// low burns CPU on every open tab for no visible gain — Discord itself is not
+// that responsive; too high makes seeking feel laggy in the status.
+const updateIntervalField: SettingsField = {
+    key: 'update_interval',
+    type: 'number',
+    label: 'Update Interval',
+    description: 'How often this site reports what you are watching, in milliseconds',
+    default: 5000,
+    min: 1000,
+    max: 60000,
+    step: 500,
+    unit: 'ms',
+    dependsOn: 'enabled',
 };
 
 function statusDisplayField(fallback: StatusDisplayType): SettingsField {
@@ -70,17 +87,18 @@ export const SITE_SCHEMAS: Record<string, SiteSchema> = {
                 dependsOn: 'enabled',
             },
             statusDisplayField(StatusDisplayType.Details),
+            updateIntervalField,
         ],
     },
     'music.youtube.com': {
         label: 'YouTube Music',
         script: './scripts/youtube-music.js',
-        fields: [enabledField, statusDisplayField(StatusDisplayType.Details)],
+        fields: [enabledField, statusDisplayField(StatusDisplayType.Details), updateIntervalField],
     },
     'www.twitch.tv': {
         label: 'Twitch',
         script: './scripts/twitch.js',
-        fields: [enabledField, statusDisplayField(StatusDisplayType.State)],
+        fields: [enabledField, statusDisplayField(StatusDisplayType.State), updateIntervalField],
     },
 };
 
@@ -108,6 +126,11 @@ export function coerceConfig(site: string, stored: unknown): Config {
         const value = raw[field.key];
         if (field.type === 'boolean') {
             config[field.key] = typeof value === 'boolean' ? value : field.default;
+        } else if (field.type === 'number') {
+            // Clamp rather than reject: a stored value just outside the range
+            // still expresses the user's intent.
+            const usable = typeof value === 'number' && Number.isFinite(value);
+            config[field.key] = usable ? Math.min(field.max, Math.max(field.min, value)) : field.default;
         } else {
             const known = field.options.some((option) => option.value === value);
             config[field.key] = known ? value : field.default;

@@ -2,6 +2,9 @@ import { createPresenceClient, type PresenceActivity } from './presence'
 import { coerceConfig } from '../src/settings-schema'
 import type { Config } from '../src/types'
 
+// Only reached if a site's schema drops the field; coerceConfig fills it otherwise.
+const DEFAULT_UPDATE_INTERVAL = 5000
+
 // Shared bootstrap for injected site scripts: wires the config lifecycle
 // (CONFIG_REQUEST on start, CONFIG broadcast from the background worker)
 // around a presence client, so each site script only defines how to build
@@ -14,7 +17,10 @@ export function createSiteScript(site: string, getActivity: (config: Config) => 
 
     chrome.runtime.sendMessage({ type: 'CONFIG_REQUEST' })
 
-    const client = createPresenceClient(() => getActivity(config))
+    const client = createPresenceClient(
+        () => getActivity(config),
+        () => config.update_interval ?? DEFAULT_UPDATE_INTERVAL,
+    )
 
     chrome.runtime.onMessage.addListener((message: any) => {
         if (message.type === 'CONFIG') {

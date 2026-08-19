@@ -4,6 +4,7 @@ export type Config = {
     enabled: boolean;
     channel_info?: boolean;
     status_display_type?: StatusDisplayType;
+    update_interval?: number;
 };
 
 export type Settings = {

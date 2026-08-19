@@ -111,6 +111,10 @@ export default defineConfig({
         "select-ui":
             "w-full mt-2.5 py-2.5 pl-3 pr-8 bg-[#0b0d13] border border-lineHi rounded-[2px] text-ink font-mono text-[0.78rem] appearance-none cursor-pointer transition-all duration-160 hover:border-faint focus-visible:(outline-none border-indigo ring-3 ring-indigo/25)",
 
+        "number-ui":
+            "w-[7.5rem] py-2.5 px-3 bg-[#0b0d13] border border-lineHi rounded-[2px] text-ink font-mono text-[0.78rem] transition-all duration-160 hover:border-faint focus-visible:(outline-none border-indigo ring-3 ring-indigo/25)",
+        "number-unit": "font-mono text-[0.7rem] text-faint",
+
         // Actions
         "save-btn":
             "mt-4.5 px-4 py-3 accent-fill border-none notch text-white font-mono text-[0.76rem] font-bold tracking-[0.18em] uppercase cursor-pointer transition-all duration-160 hover:not-disabled:brightness-115 active:not-disabled:translate-y-px disabled:(cursor-default grayscale-70 brightness-75)",

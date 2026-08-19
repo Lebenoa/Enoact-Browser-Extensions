@@ -11,10 +11,11 @@ import type { Activity } from '../src/activity'
 export type PresenceActivity = Activity
 
 const CORE_URL = 'ws://127.0.0.1:5579/ws'
-const UPDATE_DELAY = 3000
 const MAX_RECONNECT_DELAY = 30000
 
-export function createPresenceClient(getActivity: () => PresenceActivity | null) {
+// getDelay is read each time the timer is armed rather than captured once, so
+// a config change takes effect on the next restart() instead of at reload.
+export function createPresenceClient(getActivity: () => PresenceActivity | null, getDelay: () => number) {
     let socket: WebSocket | undefined
     let interval: ReturnType<typeof setInterval> | undefined
     let retryTimer: ReturnType<typeof setTimeout> | undefined
@@ -40,8 +41,7 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null)
             if (socket !== ws) return
             reconnectAttempts = 0
             lastPayload = undefined // server may have lost state — re-send current activity
-            if (interval) clearInterval(interval)
-            interval = setInterval(update, UPDATE_DELAY)
+            armTimer()
             update()
         })
         ws.addEventListener('error', () => ws.close())
@@ -56,6 +56,11 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null)
             }
             scheduleReconnect()
         })
+    }
+
+    function armTimer() {
+        if (interval) clearInterval(interval)
+        interval = setInterval(update, getDelay())
     }
 
     function scheduleReconnect() {
@@ -73,6 +78,9 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null)
     function restart() {
         lastPayload = undefined
         connect()
+        // Pick up a changed update interval; connect() only arms the timer when
+        // it actually opens a socket, so an already-open one would keep the old.
+        if (interval) armTimer()
         update()
     }
 

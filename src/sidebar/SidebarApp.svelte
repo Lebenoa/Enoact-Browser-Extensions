@@ -213,6 +213,19 @@
                                         </div>
                                         {#if field.type === 'boolean'}
                                             <Toggle bind:checked={boolDraft[field.key]} label={field.label} />
+                                        {:else if field.type === 'number'}
+                                            <div class="flex items-center gap-2 mt-2.5">
+                                                <input
+                                                    class="number-ui"
+                                                    type="number"
+                                                    min={field.min}
+                                                    max={field.max}
+                                                    step={field.step}
+                                                    aria-label={field.label}
+                                                    bind:value={numDraft[field.key]}
+                                                />
+                                                {#if field.unit}<span class="number-unit">{field.unit}</span>{/if}
+                                            </div>
                                         {:else}
                                             <select class="select-ui" bind:value={numDraft[field.key]}>
                                                 {#each field.options as option}
