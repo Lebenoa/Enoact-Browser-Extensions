@@ -31,3 +31,7 @@ yarn-error.log*
 extension-env.d.ts
 
 public/uno.css
+
+# extension.js local session state
+.extension-js
+.*
