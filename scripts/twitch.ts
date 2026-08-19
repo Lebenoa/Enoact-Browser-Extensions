@@ -8,6 +8,7 @@ type InitialState = {
         title?: string
         channel?: {
             name?: string
+            displayName?: string
             profileImageURL?: string
         }
     }
@@ -59,21 +60,50 @@ export default function initTwitch() {
         return first
     }
 
+    // The URL only carries the login name, which is always lower case, so
+    // "GTASeriesVideos" reaches Discord as "gtaseriesvideos". The rendered
+    // name is the streamer's chosen capitalisation — take it from the page and
+    // keep the login for URLs.
+    function getDisplayName(channel: string | null) {
+        if (!channel) return undefined
+
+        const scoped = findChannelAvatar(channel)?.getAttribute('alt')?.trim()
+        if (scoped) return scoped
+
+        // The header name is an <h1> inside a link back to the channel.
+        for (const heading of document.querySelectorAll<HTMLHeadingElement>('h1')) {
+            const href = heading.closest('a')?.getAttribute('href')?.replace(/^\/+/, '').toLowerCase()
+            const text = heading.textContent?.trim()
+            if (href === channel && text) return text
+        }
+
+        // Last resort: the tab title, but only when it differs from the login
+        // by capitalisation alone. A title carrying anything else (a stream
+        // title, a localised suffix) would put the wrong text on the status.
+        const titled = document.title.replace(/\s+-\s+Twitch\s*$/, '').trim()
+        if (titled.toLowerCase() === channel) return titled
+
+        return undefined
+    }
+
     // A channel page carries a dozen or more avatars, and the sidebar's
     // followed channels come first in the DOM — so "the first avatar on the
     // page" is some unrelated streamer (or the viewer's own account), never
     // the one being watched. The streamer's avatar is the one whose link
     // points back at the channel in the URL.
-    function getChannelAvatar(channel: string | null) {
-        if (!channel) return undefined
+    function findChannelAvatar(channel: string) {
         for (const image of document.querySelectorAll<HTMLImageElement>('img.tw-image-avatar')) {
             const href = image.closest('a')?.getAttribute('href')?.replace(/^\/+/, '').toLowerCase()
-            if (href === channel) return image.src
+            if (href === channel) return image
             // Layouts that render the header avatar without a wrapping link:
             // fall back to the alt text, which carries the display name.
-            if (!href && image.getAttribute('alt')?.toLowerCase() === channel) return image.src
+            if (!href && image.getAttribute('alt')?.toLowerCase() === channel) return image
         }
         return undefined
+    }
+
+    function getChannelAvatar(channel: string | null) {
+        return channel ? findChannelAvatar(channel)?.src : undefined
     }
 
     function getStreamInfo() {
@@ -86,9 +116,10 @@ export default function initTwitch() {
         const matches = stream?.channel?.name?.toLowerCase() === channel
         const title = matches ? stream?.title ?? null : (document.querySelector('[data-a-target="stream-title"]')?.textContent?.trim() || null)
         const avatar = matches ? stream?.channel?.profileImageURL : getChannelAvatar(channel)
+        const display = (matches ? stream?.channel?.displayName : undefined) ?? getDisplayName(channel) ?? channel
         const url = channel ? `https://www.twitch.tv/${channel}` : undefined
         return {
-            channel,
+            channel: display,
             channel_url: url,
             title,
             thumbnail: channel ? `https://static-cdn.jtvnw.net/previews-ttv/live_user_${channel}-1920x1080.jpg` : undefined,
