@@ -123,30 +123,30 @@
 
 <div class="panel">
     <header class="head">
-        <img class="head__mark" src={logo} alt="" aria-hidden="true" />
+        <img class="w-[30px] h-[30px] object-contain drop-shadow-[0_0_10px_rgba(255,0,229,0.35)]" src={logo} alt="" aria-hidden="true" />
         <div>
-            <div class="head__word">ENOACT</div>
-            <div class="head__sub">presence broadcaster</div>
+            <div class="head-word">ENOACT</div>
+            <div class="head-sub">presence broadcaster</div>
         </div>
         {#if currentTab === ''}
-            <span class="head__count">{liveCount}/{sitesAvailable.length} live</span>
+            <span class="head-count">{liveCount}/{sitesAvailable.length} live</span>
         {/if}
     </header>
 
-    <div class="body">
+    <div class="scroller">
         {#key currentTab}
             <div in:fade={{ duration: 140 }}>
                 {#if currentTab === ''}
-                    <ul class="sites">
+                    <ul class="list-none m-0 p-0 flex flex-col gap-2">
                         {#each sitesAvailable as { name, enabled } (name)}
-                            <li class="site" class:site--live={enabled}>
-                                <span class="site__rail"></span>
-                                <button class="site__main" onclick={() => openSite(name)}>
-                                    <span class="site__name">{labelFor(name)}</span>
-                                    <span class="site__host">{name}</span>
+                            <li class="site-row">
+                                <span class="site-rail {enabled ? 'site-rail-live' : ''}"></span>
+                                <button class="site-main" onclick={() => openSite(name)}>
+                                    <span class="site-name">{labelFor(name)}</span>
+                                    <span class="site-host">{name}</span>
                                 </button>
-                                <div class="site__side">
-                                    <span class="site__state">{enabled ? 'LIVE' : 'OFF'}</span>
+                                <div class="site-side">
+                                    <span class="site-state {enabled ? 'site-state-live' : ''}">{enabled ? 'LIVE' : 'OFF'}</span>
                                     <Toggle
                                         checked={enabled}
                                         label={`Toggle ${labelFor(name)}`}
@@ -162,21 +162,21 @@
                         {/if}
                     </ul>
                 {:else}
-                    <button class="back" onclick={closeSite}>&#8592; all sites</button>
+                    <button class="back-link" onclick={closeSite}>&#8592; all sites</button>
 
                     {#if status === 'loading'}
-                        <div class="state">
-                            <div class="skeleton" style="width:100%"></div>
-                            <div class="skeleton" style="width:100%"></div>
+                        <div class="state-block">
+                            <div class="skeleton"></div>
+                            <div class="skeleton"></div>
                         </div>
                     {:else if !draft}
-                        <div class="state">
-                            <p class="notice notice--error">{notice || 'Could not load these settings.'}</p>
-                            <button class="ghost" onclick={() => requestSettings(currentTab)}>Retry</button>
+                        <div class="state-block">
+                            <p class="notice notice-error">{notice || 'Could not load these settings.'}</p>
+                            <button class="ghost-btn" onclick={() => requestSettings(currentTab)}>Retry</button>
                         </div>
                     {:else}
-                        <h1 class="editor__title">{labelFor(currentTab)}</h1>
-                        <div class="editor__host">{currentTab}</div>
+                        <h1 class="editor-title">{labelFor(currentTab)}</h1>
+                        <div class="editor-host">{currentTab}</div>
 
                         <!-- The mark's zigzag, reused as the section rule. -->
                         <svg class="spike" viewBox="0 0 104 16" fill="none" aria-hidden="true">
@@ -196,25 +196,25 @@
                         </svg>
 
                         {#if notice}
-                            <p class="notice" class:notice--error={status === 'error'} transition:fade>{notice}</p>
+                            <p class="notice {status === 'error' ? 'notice-error' : ''}" transition:fade>{notice}</p>
                         {/if}
 
-                        <form class="fields" onsubmit={handleSubmit}>
+                        <form class="flex flex-col m-0" onsubmit={handleSubmit}>
                             <!-- Fields come from the schema, not from whichever keys the
                                  stored config happens to carry. -->
                             {#each fields as field (field.key)}
                                 {@const boolDraft = draft as Record<string, boolean>}
                                 {@const numDraft = draft as Record<string, number>}
                                 {#if !field.dependsOn || draft[field.dependsOn]}
-                                    <div class="field" class:field--switch={field.type === 'boolean'} transition:fade>
-                                        <div class="field__text">
-                                            <span class="field__label">{field.label}</span>
-                                            {#if field.description}<span class="field__desc">{field.description}</span>{/if}
+                                    <div class="field {field.type === 'boolean' ? 'field-switch' : ''}" transition:fade>
+                                        <div class="flex-1 min-w-0">
+                                            <span class="field-label">{field.label}</span>
+                                            {#if field.description}<span class="field-desc">{field.description}</span>{/if}
                                         </div>
                                         {#if field.type === 'boolean'}
                                             <Toggle bind:checked={boolDraft[field.key]} label={field.label} />
                                         {:else}
-                                            <select class="select" bind:value={numDraft[field.key]}>
+                                            <select class="select-ui" bind:value={numDraft[field.key]}>
                                                 {#each field.options as option}
                                                     <option value={option.value}>{option.label}</option>
                                                 {/each}
@@ -224,7 +224,7 @@
                                 {/if}
                             {/each}
 
-                            <button class="save" disabled={status === 'saving'}>
+                            <button class="save-btn" disabled={status === 'saving'}>
                                 {status === 'saving' ? 'Saving' : 'Save changes'}
                             </button>
                         </form>

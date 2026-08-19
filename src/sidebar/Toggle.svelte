@@ -17,4 +17,13 @@
     }
 </script>
 
-<button type="button" class="switch" role="switch" aria-checked={checked} aria-label={label} onclick={activate}></button>
+<button
+    type="button"
+    class="switch-track {checked ? 'switch-track-on' : ''}"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    onclick={activate}
+>
+    <span class="switch-knob {checked ? 'switch-knob-on' : ''}"></span>
+</button>
