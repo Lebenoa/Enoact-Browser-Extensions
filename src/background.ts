@@ -5,7 +5,7 @@ const SETTINGS_KEY = 'enoact_settings'
 const defaultSettings: Settings = {
     'www.youtube.com': {
         script: './scripts/youtube.js',
-        config: { enabled: true, channel_info: true, robust_info: false },
+        config: { enabled: true, channel_info: true },
     },
     'music.youtube.com': {
         script: './scripts/youtube-music.js',
@@ -30,6 +30,18 @@ if (isFirefoxLike) {
     void api.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 }
 
+// Push the latest per-site config to every open tab of that site, so toggles
+// (and other settings edits) take effect on already-open tabs immediately.
+async function broadcastConfig(host: string) {
+    const settings = await getSettings()
+    const site = settings[host]
+    if (!site) return
+    const tabs = await api.tabs.query({ url: `*://${host}/*` })
+    for (const tab of tabs) {
+        if (tab.id) await sendConfig(tab.id, site.config)
+    }
+}
+
 function mergeWithDefaults(saved: Partial<Settings>): Settings {
     const merged = structuredClone(defaultSettings)
     for (const [site, siteSettings] of Object.entries(saved)) {
@@ -40,13 +52,28 @@ function mergeWithDefaults(saved: Partial<Settings>): Settings {
             config: { ...defaultSettings[site].config, ...siteSettings.config },
         }
     }
+    // Migrate away from removed config keys (robust_info's popup scraping was
+    // replaced by ytInitialPlayerResponse data).
+    for (const siteSettings of Object.values(merged)) {
+        delete (siteSettings.config as Record<string, unknown>).robust_info
+    }
     return merged
 }
 
+let settingsCache: Settings | undefined
+
+// The cache can go stale when settings change outside this worker (e.g. via
+// chrome.storage.sync from another browser instance) — invalidate on change.
+api.storage.onChanged.addListener((changes: any, areaName: string) => {
+    if (areaName === 'sync' && changes[SETTINGS_KEY]) settingsCache = undefined
+})
+
 async function getSettings(): Promise<Settings> {
+    if (settingsCache) return settingsCache
     try {
         const stored = await api.storage.sync.get(SETTINGS_KEY)
-        return stored[SETTINGS_KEY] ? mergeWithDefaults(stored[SETTINGS_KEY]) : structuredClone(defaultSettings)
+        settingsCache = stored[SETTINGS_KEY] ? mergeWithDefaults(stored[SETTINGS_KEY]) : structuredClone(defaultSettings)
+        return settingsCache
     } catch (error) {
         console.error('Failed to get settings:', error)
         return structuredClone(defaultSettings)
@@ -64,6 +91,7 @@ async function saveSettings(settings: Partial<SaveSettings>): Promise<void> {
     }
 
     await api.storage.sync.set({ [SETTINGS_KEY]: configOnly })
+    settingsCache = undefined
 }
 
 async function sendConfig(tabId: number, config: Config) {
@@ -137,6 +165,7 @@ api.runtime.onConnect.addListener((port: any) => {
                     const enabled = !site.config.enabled
                     await saveSettings({ [message.name]: { config: { ...site.config, enabled } } })
                     port.postMessage({ type: 'TOGGLE', name: message.name, enabled } satisfies SidebarResponse)
+                    await broadcastConfig(message.name)
                     break
                 }
                 case 'GET_SETTINGS': {
@@ -149,6 +178,7 @@ api.runtime.onConnect.addListener((port: any) => {
                     if (!defaultSettings[message.name]) return
                     await saveSettings({ [message.name]: { config: message.settings } })
                     port.postMessage({ type: 'SUCCESS', message: 'Settings updated successfully' } satisfies SidebarResponse)
+                    await broadcastConfig(message.name)
                     break
             }
         } catch (error) {

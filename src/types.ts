@@ -1,7 +1,6 @@
 type Config = {
     enabled: boolean;
     channel_info?: boolean;
-    robust_info?: boolean;
     status_display_type?: number;
 };
 

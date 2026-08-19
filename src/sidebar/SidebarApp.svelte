@@ -15,7 +15,6 @@
     const SETTINGS_INFO: Record<string, SettingsInfo> = {
         enabled: { rename: 'Enabled', description: 'Disable/enable the extension on this site', type: 'boolean' },
         channel_info: { rename: 'Channel Info', description: 'Display channel icon on the small image', type: 'boolean' },
-        robust_info: { rename: 'Robust Info', description: 'Extract more information from collaboration video but may flicker screen a little bit', type: 'boolean', dependsOn: 'channel_info' },
         status_display_type: { rename: 'Status Display Type', type: 'string' },
     };
 
