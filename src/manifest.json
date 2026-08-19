@@ -58,7 +58,8 @@
         "storage",
         "webNavigation",
         "*://www.youtube.com/*",
-        "*://music.youtube.com/*"
+        "*://music.youtube.com/*",
+        "*://www.twitch.tv/*"
     ],
     "background": {
         "chromium:service_worker": "background.ts",
@@ -68,7 +69,8 @@
     },
     "chromium:host_permissions": [
         "*://www.youtube.com/*",
-        "*://music.youtube.com/*"
+        "*://music.youtube.com/*",
+        "*://www.twitch.tv/*"
     ],
     "author": "Lebenoa",
     "firefox:browser_specific_settings": {
