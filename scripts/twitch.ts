@@ -1,17 +1,26 @@
 import { createPresenceClient } from './presence'
+import { extractEmbeddedJson } from './embedded-json'
 
 type Config = { enabled: boolean; status_display_type?: number }
+
+type InitialState = {
+    stream?: {
+        title?: string
+        channel?: {
+            name?: string
+            profileImageURL?: string
+        }
+    }
+}
 
 export default function initTwitch() {
     let config: Config = { enabled: true }
 
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'CONFIG') config = message.config
-    })
     chrome.runtime.sendMessage({ type: 'CONFIG_REQUEST' })
 
     let lastPath = location.pathname
     const client = createPresenceClient(() => {
+        if (!config.enabled) return null
         const info = getStreamInfo()
         if (!info.title) return null
 
@@ -30,6 +39,14 @@ export default function initTwitch() {
                 small_text: info.channel ?? '<BLANK>',
                 small_url: info.channel_url,
             },
+        }
+    })
+
+    chrome.runtime.onMessage.addListener((message) => {
+        if (message.type === 'CONFIG') {
+            config = message.config
+            // Apply immediately: a disabled site clears, an edit re-pushes.
+            client.restart()
         }
     })
 
@@ -52,8 +69,16 @@ export default function initTwitch() {
 
     function getStreamInfo() {
         const channel = getChannelName()
-        const title = document.querySelector('[data-a-target="stream-title"]')?.textContent?.trim() || null
-        const avatar = (document.querySelector('.tw-avatar img.tw-image-avatar') as HTMLImageElement | null)?.src
+        // __INITIAL_STATE__ is embedded once in the initial HTML and never
+        // updates on SPA navigation — only trust it when it matches the
+        // current channel, otherwise read the page DOM (data-a-target hooks).
+        const state = extractEmbeddedJson<InitialState>('__INITIAL_STATE__')
+        const stream = state?.stream
+        const matches = stream?.channel?.name?.toLowerCase() === channel
+        const title = matches ? stream?.title ?? null : (document.querySelector('[data-a-target="stream-title"]')?.textContent?.trim() || null)
+        const avatar = matches
+            ? stream?.channel?.profileImageURL
+            : (document.querySelector('.tw-avatar img.tw-image-avatar') as HTMLImageElement | null)?.src
         const url = channel ? `https://www.twitch.tv/${channel}` : undefined
         return {
             channel,
