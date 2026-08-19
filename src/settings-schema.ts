@@ -57,7 +57,7 @@ const updateModeField: SettingsField = {
     type: 'select',
     label: 'Update Mode',
     description: 'Events react instantly and idle while a video plays; polling is steadier on sites that update quietly',
-    default: UpdateMode.Poll,
+    default: UpdateMode.Event,
     options: UPDATE_MODE_OPTIONS,
     dependsOn: 'enabled',
 };
