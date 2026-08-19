@@ -1,159 +1,160 @@
-const isFirefoxLike =
-    import.meta.env.EXTENSION_PUBLIC_BROWSER === 'firefox' ||
-    import.meta.env.EXTENSION_PUBLIC_BROWSER === 'gecko-based'
+import { api, isFirefoxLike } from './api'
 
 const SETTINGS_KEY = 'enoact_settings'
 
 const defaultSettings: Settings = {
-    "www.youtube.com": {
-        script: "./scripts/youtube.js",
-        config: {
-            enabled: true,
-            channel_info: true,
-            robust_info: false,
-        },
+    'www.youtube.com': {
+        script: './scripts/youtube.js',
+        config: { enabled: true, channel_info: true, robust_info: false },
     },
-    "music.youtube.com": {
-        script: "./scripts/youtube-music.js",
-        config: {
-            enabled: true,
-        },
+    'music.youtube.com': {
+        script: './scripts/youtube-music.js',
+        config: { enabled: true },
+    },
+    'www.twitch.tv': {
+        script: './scripts/twitch.js',
+        config: { enabled: true },
     },
 }
 
-let storage: typeof browser.storage | typeof chrome.storage;
+type SidebarResponse =
+    | { type: 'SETTINGS_LIST'; items: { name: string; enabled: boolean }[] }
+    | { type: 'TOGGLE'; name: string; enabled: boolean }
+    | { type: 'GET_SETTINGS'; settings: Config }
+    | { type: 'SUCCESS'; message: string }
+    | { type: 'ERROR'; message: string }
 
 if (isFirefoxLike) {
-    storage = browser.storage;
-    browser.browserAction.onClicked.addListener(() => {
-        browser.sidebarAction.open()
-    })
-
+    api.browserAction.onClicked.addListener(() => api.sidebarAction.open())
 } else {
-    storage = chrome.storage;
-    chrome.action.onClicked.addListener(() => {
-        chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-    })
+    void api.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
 }
 
-
-// Deep merge settings with defaults
-function mergeWithDefaults(saved: Partial<typeof defaultSettings>): typeof defaultSettings {
-    const merged = { ...defaultSettings }
+function mergeWithDefaults(saved: Partial<Settings>): Settings {
+    const merged = structuredClone(defaultSettings)
     for (const [site, siteSettings] of Object.entries(saved)) {
-        if (site in defaultSettings) {
-            merged[site as keyof typeof defaultSettings] = {
-                ...defaultSettings[site as keyof typeof defaultSettings],
-                ...(siteSettings || {}),
-                config: {
-                    ...defaultSettings[site as keyof typeof defaultSettings].config,
-                    ...(siteSettings?.config || {}),
-                },
-            }
+        if (!(site in defaultSettings) || !siteSettings) continue
+        merged[site] = {
+            ...defaultSettings[site],
+            ...siteSettings,
+            config: { ...defaultSettings[site].config, ...siteSettings.config },
         }
     }
     return merged
 }
 
-// Get settings from storage
-async function getSettings(): Promise<typeof defaultSettings> {
+async function getSettings(): Promise<Settings> {
     try {
-        const extStorage = await storage.sync.get(SETTINGS_KEY)
-        return extStorage[SETTINGS_KEY] ? mergeWithDefaults(extStorage[SETTINGS_KEY]) : defaultSettings
+        const stored = await api.storage.sync.get(SETTINGS_KEY)
+        return stored[SETTINGS_KEY] ? mergeWithDefaults(stored[SETTINGS_KEY]) : structuredClone(defaultSettings)
     } catch (error) {
         console.error('Failed to get settings:', error)
-        return defaultSettings
+        return structuredClone(defaultSettings)
     }
 }
 
-getSettings().then((settings) => {
-    console.log(settings)
+async function saveSettings(settings: Partial<SaveSettings>): Promise<void> {
+    const current = await getSettings()
+    const updated = { ...current, ...settings }
+    const configOnly: SaveSettings = {}
+
+    for (const [site, siteSettings] of Object.entries(updated)) {
+        if (!siteSettings) continue
+        configOnly[site] = { config: siteSettings.config }
+    }
+
+    await api.storage.sync.set({ [SETTINGS_KEY]: configOnly })
+}
+
+async function sendConfig(tabId: number, config: Config) {
+    try {
+        await api.tabs.sendMessage(tabId, { type: 'CONFIG', config })
+    } catch {
+        // Page may have navigated or script may not be ready anymore.
+    }
+}
+
+api.webNavigation.onCommitted.addListener(async (details: any) => {
+    if (details.frameId !== 0) return
+
+    const settings = await getSettings()
+    const url = new URL(details.url)
+    const siteSetting = settings[url.host]
+    if (!siteSetting?.script || !siteSetting.config.enabled) return
+
+    try {
+        await api.scripting.executeScript({
+            target: { tabId: details.tabId },
+            files: [siteSetting.script],
+        })
+        await sendConfig(details.tabId, siteSetting.config)
+    } catch (error) {
+        console.error('Failed to inject site script:', error)
+    }
 })
 
-// Save settings to storage (only saves config)
-async function saveSettings(settings: Partial<SaveSettings>): Promise<void> {
-    try {
-        const current = await getSettings()
-        const updated = { ...current, ...settings }
-        console.log({ updated });
-        // Only save config properties for each site
-        const configOnly: SaveSettings = {}
-        for (const [site, siteSettings] of Object.entries(updated)) {
-            const { config } = siteSettings ? siteSettings : defaultSettings[site as keyof typeof defaultSettings];
-            configOnly[site as keyof Settings] = {
-                config,
-            }
-        }
-        await chrome.storage.sync.set({ [SETTINGS_KEY]: configOnly })
-        console.log('Settings saved:', configOnly)
-    } catch (error) {
-        console.error('Failed to save settings:', error)
+api.runtime.onMessage.addListener((message: any, sender: any) => {
+    if (message?.type === 'CONFIG_REQUEST' && sender.tab?.id) {
+        void getSettings().then((settings) => {
+            const site = settings[new URL(sender.tab!.url ?? '').host]
+            if (site) void api.tabs.sendMessage(sender.tab!.id!, { type: 'CONFIG', config: site.config })
+        })
+        return
     }
-}
 
-chrome.webNavigation.onCommitted.addListener(async (details) => {
-    const settings = await getSettings();
-    const url = new URL(details.url);
-    const siteSetting = settings[url.host as keyof typeof defaultSettings];
-    if (!siteSetting || !siteSetting.script) return
+    if (message?.type !== 'openSidebar' || !sender.tab?.id) return
 
-    const isContentEnabled: boolean = settings[url.host as keyof typeof settings]?.config?.enabled ?? false;
-    if (!isContentEnabled) return
+    if (isFirefoxLike) {
+        void api.sidebarAction.open()
+    } else {
+        void api.sidePanel.open({ tabId: sender.tab.id })
+    }
+})
 
-    await chrome.scripting.executeScript({
-        target: { tabId: details.tabId },
-        files: [siteSetting.script],
+api.runtime.onConnect.addListener((port: any) => {
+    if (port.name !== 'sidebar') return
+
+    void getSettings().then((settings) => {
+        const response: SidebarResponse = {
+            type: 'SETTINGS_LIST',
+            items: Object.keys(defaultSettings).map((site) => ({
+                name: site,
+                enabled: settings[site].config.enabled,
+            })),
+        }
+        port.postMessage(response)
     })
 
-    setTimeout(() => {
-        chrome.tabs.sendMessage(details.tabId, {
-            type: "CONFIG",
-            config: siteSetting.config,
-        })
-    }, 2000)
-})
-
-chrome.runtime.onConnect.addListener((port) => {
-    if (port.name === "sidebar") {
-        (async () => {
-            const initSettings = await getSettings()
-            port.postMessage({
-                type: "SETTINGS_LIST", items: Object.keys(defaultSettings).map((site) => {
-                    return { name: site, enabled: initSettings[site as keyof typeof defaultSettings]?.config?.enabled ?? defaultSettings[site as keyof typeof defaultSettings].config.enabled }
-                })
-            })
-        })()
-        port.onMessage.addListener(async (message) => {
+    port.onMessage.addListener((rawMessage: unknown) => {
+        const message = rawMessage as SidebarMessage
+        void (async () => {
+        try {
             switch (message.type) {
-                case 'TOGGLE':
-                    if (!message.name) return
-                    const currentSettings = await getSettings();
-                    const currentValue = currentSettings[message.name as keyof typeof defaultSettings].config.enabled
-                    currentSettings[message.name as keyof typeof defaultSettings].config.enabled = !currentValue
-                    await saveSettings(currentSettings);
-                    port.postMessage({ type: "TOGGLE", name: message.name, enabled: !currentValue })
-                    break;
-                case 'GET_SETTINGS':
-                    if (!message.site) return
-                    const settings = await getSettings();
-                    const siteSettings = settings[message.site as keyof typeof defaultSettings]
-                    port.postMessage({ type: "GET_SETTINGS", settings: siteSettings.config })
-                    break;
+                case 'TOGGLE': {
+                    const current = await getSettings()
+                    const site = current[message.name]
+                    if (!site) return
+                    const enabled = !site.config.enabled
+                    await saveSettings({ [message.name]: { config: { ...site.config, enabled } } })
+                    port.postMessage({ type: 'TOGGLE', name: message.name, enabled } satisfies SidebarResponse)
+                    break
+                }
+                case 'GET_SETTINGS': {
+                    const settings = await getSettings()
+                    const site = settings[message.site]
+                    if (site) port.postMessage({ type: 'GET_SETTINGS', settings: site.config } satisfies SidebarResponse)
+                    break
+                }
                 case 'UPDATE_SETTINGS':
-                    if (!message.name || !message.settings) return
-                    try {
-                        await saveSettings({ [message.name]: { config: message.settings as Config } });
-                        port.postMessage({ type: "SUCCESS", message: "Settings updated successfully" })
-                    } catch (err) {
-                        port.postMessage({ type: "ERROR", message: "Failed to save settings" })
-                    }
-                    break;
-                default:
-                    break;
+                    if (!defaultSettings[message.name]) return
+                    await saveSettings({ [message.name]: { config: message.settings } })
+                    port.postMessage({ type: 'SUCCESS', message: 'Settings updated successfully' } satisfies SidebarResponse)
+                    break
             }
-        })
-        port.onDisconnect.addListener(() => {
-            console.log('Sidebar disconnected')
-        })
-    }
+        } catch (error) {
+            console.error('Sidebar request failed:', error)
+            port.postMessage({ type: 'ERROR', message: 'Failed to save settings' } satisfies SidebarResponse)
+        }
+        })()
+    })
 })
