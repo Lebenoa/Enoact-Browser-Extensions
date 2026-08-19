@@ -11,13 +11,13 @@
         "url": "https://lebenoa.com"
     },
     "dependencies": {
-        "svelte": "^5.15.0"
+        "svelte": "^5.56.9"
     },
     "devDependencies": {
         "@tsconfig/svelte": "5.0.8",
-        "extension": "^3.15.1",
-        "typescript": "6.0.3",
-        "unocss": "^66.6.8"
+        "extension": "^4.0.34",
+        "typescript": "7.0.2",
+        "unocss": "^66.7.5"
     },
     "scripts": {
         "dev": "bun run dev-scripts/dev.ts",
