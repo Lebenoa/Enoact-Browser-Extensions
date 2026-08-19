@@ -168,8 +168,10 @@ async function injectPlayerResponseShim(tabId: number) {
             func: playerResponseShim,
         })
     } catch {
-        // Older Firefox builds don't support world: 'MAIN'; the site scripts'
-        // embedded-JSON fallback still works there, just stale on navigation.
+        // Older Firefox builds don't support world: 'MAIN'. On YouTube watch
+        // pages the site script degrades to the embedded ytInitialPlayerResponse
+        // JSON — usable, just stale after SPA navigation. YouTube Music embeds
+        // no such JSON at all, so there it degrades to no presence.
     }
 }
 
