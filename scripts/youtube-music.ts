@@ -44,7 +44,7 @@ export default function initYouTubeMusic() {
         const videoId = details?.videoId
 
         const state = player?.getPlayerState?.()
-        const playing = !isVideoPaused(video, () => state === 1 || state === 3 || (state === undefined && playButton === 'Pause'))
+        const playing = !isVideoPaused(video, () => !(state === 1 || state === 3 || (state === undefined && playButton === 'Pause')))
 
         return {
             title: details?.title,

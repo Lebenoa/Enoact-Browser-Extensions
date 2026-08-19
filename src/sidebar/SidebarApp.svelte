@@ -33,6 +33,10 @@
         port.onDisconnect.addListener(() => {
             setTimeout(connect, 100);
         });
+        // The worker can sleep between the request and its reply, dropping the
+        // port; re-ask on reconnect so the editor doesn't sit on "Loading.."
+        // forever.
+        if (currentTab !== '') retrieveSettingsFor(currentTab);
     }
 
     function handleMessage(message: BackgroundMessage) {

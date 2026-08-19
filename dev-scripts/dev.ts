@@ -13,8 +13,16 @@ import * as readline from 'readline';
 
 type CP = ChildProcessWithoutNullStreams;
 
+// `child.killed` only says a signal was *sent*, not that the child is gone, so
+// a process that ignores SIGTERM would never be force-killed. Track real exits.
+const exited = new WeakSet<CP>();
+
 function spawnProc(name: string, args: string[]): CP {
     const cp = spawn(name, args, { stdio: 'pipe', shell: false });
+
+    cp.on('exit', () => exited.add(cp));
+    // A child that never started has no process to kill either.
+    cp.on('error', () => exited.add(cp));
 
     for (const [stream, label] of [[cp.stdout, name], [cp.stderr, name]] as const) {
         const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -40,20 +48,20 @@ function stopChildren(reason: string): Promise<void> {
     console.log(`${reason} - stopping children...`);
 
     for (const child of children) {
-        if (!child.killed) child.kill('SIGTERM');
+        if (!exited.has(child)) child.kill('SIGTERM');
     }
 
     const forceKill = new Promise<void>((resolve) => {
         setTimeout(() => {
             for (const child of children) {
-                if (!child.killed) child.kill('SIGKILL');
+                if (!exited.has(child)) child.kill('SIGKILL');
             }
             resolve();
         }, 5000);
     });
 
     const allExited = Promise.all(
-        children.map((child) => new Promise<void>((resolve) => child.once('exit', resolve))),
+        children.map((child) => (exited.has(child) ? Promise.resolve() : new Promise<void>((resolve) => child.once('exit', () => resolve())))),
     );
 
     return Promise.race([forceKill, allExited]).then(() => undefined);
@@ -69,6 +77,6 @@ process.on('uncaughtException', (err) => {
 process.on('exit', () => {
     stopping = false; // allow the synchronous kill pass below even after a stopChildren run
     for (const child of children) {
-        if (!child.killed) child.kill('SIGKILL');
+        if (!exited.has(child)) child.kill('SIGKILL');
     }
 });

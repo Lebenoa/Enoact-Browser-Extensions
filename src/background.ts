@@ -32,7 +32,13 @@ async function broadcastConfig(host: string) {
     if (!site) return
     const tabs = await api.tabs.query({ url: `*://${host}/*` })
     for (const tab of tabs) {
-        if (tab.id) await sendConfig(tab.id, site.config)
+        if (!tab.id) continue
+        // A tab that was loaded while the site was disabled has no script to
+        // receive the config, so re-enabling would only take effect on reload.
+        // Inject on delivery failure — a tab that already has the script takes
+        // the message and is never injected twice.
+        if (await sendConfig(tab.id, site.config)) continue
+        if (site.config.enabled) await injectSiteScript(tab.id, site)
     }
 }
 
@@ -88,11 +94,15 @@ async function saveSettings(settings: Partial<SaveSettings>): Promise<void> {
     settingsCache = undefined
 }
 
-async function sendConfig(tabId: number, config: Config) {
+// Returns whether a site script actually received the config: sendMessage
+// rejects when no listener exists in the tab (no script injected, or the page
+// navigated away).
+async function sendConfig(tabId: number, config: Config): Promise<boolean> {
     try {
         await api.tabs.sendMessage(tabId, { type: 'CONFIG', config })
+        return true
     } catch {
-        // Page may have navigated or script may not be ready anymore.
+        return false
     }
 }
 
@@ -109,6 +119,12 @@ function playerResponseShim() {
     if (w.__enoactPlayerShim) return
     w.__enoactPlayerShim = true
     window.addEventListener('enoact-player-request', () => {
+        // Clear first: the listener runs synchronously inside dispatchEvent, so
+        // whatever the attribute holds when dispatch returns is this request's
+        // answer. Without this, a torn-down or not-yet-ready player would leave
+        // the *previous* video's response behind and the reader would take it
+        // for the current one instead of falling back to the embedded JSON.
+        document.documentElement.removeAttribute(ATTR)
         try {
             const response = (document.getElementById('movie_player') as any)?.getPlayerResponse?.()
             const details = response?.videoDetails
@@ -134,7 +150,8 @@ function playerResponseShim() {
                 }),
             )
         } catch {
-            // Player not ready yet — leave the previous value in place.
+            // Player not ready yet — the attribute stays cleared, so the reader
+            // falls back to the embedded JSON.
         }
     })
 }
@@ -152,6 +169,19 @@ async function injectPlayerResponseShim(tabId: number) {
     }
 }
 
+async function injectSiteScript(tabId: number, site: Settings[string]) {
+    try {
+        await injectPlayerResponseShim(tabId)
+        await api.scripting.executeScript({
+            target: { tabId },
+            files: [site.script],
+        })
+        await sendConfig(tabId, site.config)
+    } catch (error) {
+        console.error('Failed to inject site script:', error)
+    }
+}
+
 api.webNavigation.onCommitted.addListener(async (details: any) => {
     if (details.frameId !== 0) return
 
@@ -160,16 +190,7 @@ api.webNavigation.onCommitted.addListener(async (details: any) => {
     const siteSetting = settings[url.host]
     if (!siteSetting?.script || !siteSetting.config.enabled) return
 
-    try {
-        await injectPlayerResponseShim(details.tabId)
-        await api.scripting.executeScript({
-            target: { tabId: details.tabId },
-            files: [siteSetting.script],
-        })
-        await sendConfig(details.tabId, siteSetting.config)
-    } catch (error) {
-        console.error('Failed to inject site script:', error)
-    }
+    await injectSiteScript(details.tabId, siteSetting)
 })
 
 api.runtime.onMessage.addListener((message: any, sender: any) => {
