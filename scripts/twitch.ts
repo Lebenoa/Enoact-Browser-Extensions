@@ -59,6 +59,23 @@ export default function initTwitch() {
         return first
     }
 
+    // A channel page carries a dozen or more avatars, and the sidebar's
+    // followed channels come first in the DOM — so "the first avatar on the
+    // page" is some unrelated streamer (or the viewer's own account), never
+    // the one being watched. The streamer's avatar is the one whose link
+    // points back at the channel in the URL.
+    function getChannelAvatar(channel: string | null) {
+        if (!channel) return undefined
+        for (const image of document.querySelectorAll<HTMLImageElement>('img.tw-image-avatar')) {
+            const href = image.closest('a')?.getAttribute('href')?.replace(/^\/+/, '').toLowerCase()
+            if (href === channel) return image.src
+            // Layouts that render the header avatar without a wrapping link:
+            // fall back to the alt text, which carries the display name.
+            if (!href && image.getAttribute('alt')?.toLowerCase() === channel) return image.src
+        }
+        return undefined
+    }
+
     function getStreamInfo() {
         const channel = getChannelName()
         // __INITIAL_STATE__ is embedded once in the initial HTML and never
@@ -68,9 +85,7 @@ export default function initTwitch() {
         const stream = state?.stream
         const matches = stream?.channel?.name?.toLowerCase() === channel
         const title = matches ? stream?.title ?? null : (document.querySelector('[data-a-target="stream-title"]')?.textContent?.trim() || null)
-        const avatar = matches
-            ? stream?.channel?.profileImageURL
-            : (document.querySelector('.tw-avatar img.tw-image-avatar') as HTMLImageElement | null)?.src
+        const avatar = matches ? stream?.channel?.profileImageURL : getChannelAvatar(channel)
         const url = channel ? `https://www.twitch.tv/${channel}` : undefined
         return {
             channel,
