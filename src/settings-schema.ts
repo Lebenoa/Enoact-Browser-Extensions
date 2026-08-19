@@ -23,6 +23,8 @@ export type SettingsField =
     | (FieldBase & { type: 'select'; default: number; options: FieldOption[] });
 
 export type SiteSchema = {
+    // Human-facing name; the record key stays the matched hostname.
+    label: string;
     script: string;
     fields: SettingsField[];
 };
@@ -55,6 +57,7 @@ function statusDisplayField(fallback: StatusDisplayType): SettingsField {
 
 export const SITE_SCHEMAS: Record<string, SiteSchema> = {
     'www.youtube.com': {
+        label: 'YouTube',
         script: './scripts/youtube.js',
         fields: [
             enabledField,
@@ -70,10 +73,12 @@ export const SITE_SCHEMAS: Record<string, SiteSchema> = {
         ],
     },
     'music.youtube.com': {
+        label: 'YouTube Music',
         script: './scripts/youtube-music.js',
         fields: [enabledField, statusDisplayField(StatusDisplayType.Details)],
     },
     'www.twitch.tv': {
+        label: 'Twitch',
         script: './scripts/twitch.js',
         fields: [enabledField, statusDisplayField(StatusDisplayType.State)],
     },
@@ -81,6 +86,10 @@ export const SITE_SCHEMAS: Record<string, SiteSchema> = {
 
 export function fieldsFor(site: string): SettingsField[] {
     return SITE_SCHEMAS[site]?.fields ?? [];
+}
+
+export function labelFor(site: string): string {
+    return SITE_SCHEMAS[site]?.label ?? site;
 }
 
 export function defaultConfigFor(site: string): Config {

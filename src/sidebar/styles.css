@@ -1,19 +1,481 @@
+/* Enoact settings panel.
+   The visual language comes from the extension mark: an angular zigzag in an
+   indigo-to-magenta gradient. So: cut corners instead of rounded ones, a
+   gradient "signal rail" marking sites that are broadcasting, and monospace
+   for anything the machine owns (hostnames, states). */
+
 :root {
-  --sidebar-margin: 1rem;
-  --sidebar-bg: #0a0c10;
-  --sidebar-text: #c9c9c9;
-  --sidebar-link: #e5e7eb;
-  --sidebar-border: #c9c9c9;
+    --bg: #08090d;
+    --surface: #10131b;
+    --surface-hover: #161a24;
+    --line: #1f2432;
+    --line-strong: #2c3346;
+
+    --text: #e6e8ef;
+    --muted: #868ea3;
+    --faint: #5b6275;
+
+    --indigo: #5b2bff;
+    --magenta: #ff00e5;
+    --accent: linear-gradient(135deg, var(--indigo), var(--magenta));
+    --danger: #ff4d6d;
+
+    --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* The mark's cut corner, reused on every raised surface. */
+    --notch: 9px;
+}
+
+* {
+    box-sizing: border-box;
 }
 
 body {
-  background-color: var(--sidebar-bg);
-  color: var(--sidebar-text);
-  height: 100vh;
-  margin: var(--sidebar-margin);
-  border-radius: 6px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
+    margin: 0;
+    height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+}
+
+/* A single faint glow bleeding from the top-left, in the mark's indigo. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(560px 300px at 0% 0%, rgba(91, 43, 255, 0.26), transparent 72%),
+        radial-gradient(440px 240px at 100% 0%, rgba(255, 0, 229, 0.13), transparent 72%);
+}
+
+#app {
+    position: relative;
+    height: 100%;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ---------- header ---------- */
+
+.head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 1.1rem 1rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.head__mark {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(255, 0, 229, 0.35));
+}
+
+.head__word {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    text-indent: 0.34em;
+    background: var(--accent);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.head__sub {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-top: 0.2rem;
+}
+
+.head__count {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* ---------- scroll body ---------- */
+
+.body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.85rem 1rem 1.2rem;
+}
+
+.body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.body::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+}
+
+/* ---------- site list ---------- */
+
+.sites {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.site {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% var(--notch), 100% 100%, var(--notch) 100%, 0 calc(100% - var(--notch)));
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.site:hover {
+    background: var(--surface-hover);
+    border-color: var(--line-strong);
+    transform: translateX(2px);
+}
+
+/* The rail is the "on air" signal: lit gradient when broadcasting. */
+.site__rail {
+    width: 3px;
+    flex: none;
+    background: #39415a;
+    transition: background 200ms ease, box-shadow 200ms ease;
+}
+
+.site--live .site__rail {
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(255, 0, 229, 0.55);
+    animation: rail-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes rail-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+.site__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding: 0.7rem 0.5rem 0.7rem 0.75rem;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.site__name {
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+.site__host {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--faint);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.site__side {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0 0.75rem 0 0.25rem;
+}
+
+.site__state {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.14em;
+    color: var(--faint);
+}
+
+.site--live .site__state {
+    color: var(--magenta);
+}
+
+/* ---------- switch ---------- */
+
+.switch {
+    --knob: 14px;
+    position: relative;
+    width: 38px;
+    height: 20px;
+    flex: none;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    background: #0b0d13;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+
+.switch::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 2px;
+    width: var(--knob);
+    height: var(--knob);
+    border-radius: 1px;
+    background: var(--faint);
+    transform: translateY(-50%);
+    transition: transform 180ms cubic-bezier(0.3, 0.8, 0.3, 1), background 180ms ease;
+}
+
+.switch[aria-checked="true"] {
+    border-color: transparent;
+    background: var(--accent);
+}
+
+.switch[aria-checked="true"]::after {
+    background: #ffffff;
+    transform: translate(16px, -50%);
+}
+
+.switch:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--indigo);
+}
+
+/* ---------- editor ---------- */
+
+.back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.85rem;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 160ms ease;
+}
+
+.back:hover {
+    color: var(--text);
+}
+
+.editor__title {
+    margin: 0;
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.editor__host {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--faint);
+    margin-top: 0.15rem;
+}
+
+/* The mark's zigzag, reused as the section rule. Deliberately short and
+   left-aligned — stretched full width it flattens into an ordinary hairline. */
+.spike {
+    display: block;
+    width: 104px;
+    height: 16px;
+    margin: 0.85rem 0 0.35rem;
+    overflow: visible;
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+}
+
+.field {
+    padding: 0.95rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.field--switch {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.field__text {
+    flex: 1;
+    min-width: 0;
+}
+
+.field__label {
+    display: block;
+    font-weight: 620;
+}
+
+.field__desc {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: var(--muted);
+}
+
+.select {
+    width: 100%;
+    margin-top: 0.6rem;
+    padding: 0.6rem 2rem 0.6rem 0.7rem;
+    background-color: #0b0d13;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23868ea3' stroke-width='1.6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    border: 1px solid var(--line-strong);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.select:hover {
+    border-color: var(--faint);
+}
+
+.select:focus-visible {
+    outline: none;
+    border-color: var(--indigo);
+    box-shadow: 0 0 0 3px rgba(91, 43, 255, 0.25);
+}
+
+/* ---------- primary action ---------- */
+
+.save {
+    margin-top: 1.1rem;
+    padding: 0.72rem 1rem;
+    background: var(--accent);
+    border: none;
+    clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% var(--notch), 100% 100%, var(--notch) 100%, 0 calc(100% - var(--notch)));
+    color: #ffffff;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: filter 160ms ease, transform 120ms ease;
+}
+
+.save:hover:not(:disabled) {
+    filter: brightness(1.14);
+}
+
+.save:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.save:disabled {
+    cursor: default;
+    filter: grayscale(0.7) brightness(0.75);
+}
+
+.ghost {
+    padding: 0.5rem 0.9rem;
+    background: none;
+    border: 1px solid var(--line-strong);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+
+.ghost:hover {
+    background: var(--surface-hover);
+    border-color: var(--faint);
+}
+
+/* ---------- notices / states ---------- */
+
+.notice {
+    margin: 0.9rem 0 0;
+    padding: 0.55rem 0.7rem;
+    background: var(--surface);
+    border-left: 2px solid var(--indigo);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+.notice--error {
+    border-left-color: var(--danger);
+    color: var(--danger);
+}
+
+.state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding-top: 0.5rem;
+}
+
+.skeleton {
+    height: 46px;
+    background: linear-gradient(90deg, var(--surface) 0%, var(--surface-hover) 50%, var(--surface) 100%);
+    background-size: 200% 100%;
+    animation: skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+
+    .site:hover {
+        transform: none;
+    }
 }

@@ -1,8 +1,8 @@
 <script lang="ts">
-    import Checkbox from './Checkbox.svelte';
+    import Toggle from './Toggle.svelte';
     import iconUrl from '../images/icon.png';
     import { fade } from 'svelte/transition';
-    import { coerceConfig, fieldsFor } from '../settings-schema';
+    import { coerceConfig, fieldsFor, labelFor } from '../settings-schema';
     import type { BackgroundMessage, Config, SidebarMessage } from '../types';
 
     // The worker can sleep or die mid-request; without a deadline the panel
@@ -10,7 +10,6 @@
     const REQUEST_TIMEOUT = 5000;
 
     const logo = iconUrl;
-    const buttonClass = 'px-4 py-2 border border-gray-300 bg-transparent hover:bg-gray-100 transition-colors duration-300 cursor-pointer';
 
     type Status = 'loading' | 'ready' | 'saving' | 'error';
 
@@ -24,6 +23,7 @@
     let deadline: ReturnType<typeof setTimeout> | undefined;
 
     const fields = $derived(fieldsFor(currentTab));
+    const liveCount = $derived(sitesAvailable.filter((site) => site.enabled).length);
 
     function connect() {
         port = chrome.runtime.connect({ name: 'sidebar' });
@@ -121,69 +121,116 @@
     }
 </script>
 
-{#key currentTab}
-    <div class="h-full w-full" in:fade>
+<div class="panel">
+    <header class="head">
+        <img class="head__mark" src={logo} alt="" aria-hidden="true" />
+        <div>
+            <div class="head__word">ENOACT</div>
+            <div class="head__sub">presence broadcaster</div>
+        </div>
         {#if currentTab === ''}
-            <div class="flex flex-col items-center justify-center gap-2">
-                <img class="w-full h-full" src={logo} alt="The Enoact Logo" />
-                <h1 class="font-bold text-2xl">Settings</h1>
-                {#each sitesAvailable as { name, enabled }}
-                    <div class="flex flex-row justify-between items-center mx-2 w-full text-xl">
-                        <span>{name}</span>
-                        <div class="flex flex-row">
-                            <button class={buttonClass} onclick={() => send({ type: 'TOGGLE', name })}>
-                                {enabled ? 'Enabled' : 'Disabled'}
-                            </button>
-                            <button class={buttonClass} onclick={() => openSite(name)}>Edit</button>
-                        </div>
-                    </div>
-                {/each}
-            </div>
-        {:else}
-            <button class="hover:underline px-4 py-2 absolute top-2 left-2 transition-all duration-300 cursor-pointer text-xl font-bold" onclick={closeSite}>
-                Back
-            </button>
-            {#if status === 'loading'}
-                <h2 class="font-bold text-xl">Loading..</h2>
-            {:else if !draft}
-                <div class="flex flex-col items-center gap-2">
-                    <p>{notice || 'Could not load these settings.'}</p>
-                    <button class={buttonClass} onclick={() => requestSettings(currentTab)}>Retry</button>
-                </div>
-            {:else}
-                <div class="flex flex-col items-center justify-center gap-2">
-                    <h1 class="font-bold text-4xl">{currentTab}</h1>
-                    {#if notice}
-                        <p class="text-sm" class:text-red-500={status === 'error'} transition:fade>{notice}</p>
-                    {/if}
-                    <form class="flex w-full h-full flex-col items-center justify-center gap-2" onsubmit={handleSubmit}>
-                        <!-- Fields come from the schema, not from whichever keys the
-                             stored config happens to carry. -->
-                        {#each fields as field}
-                            {@const boolDraft = draft as Record<string, boolean>}
-                            {@const numDraft = draft as Record<string, number>}
-                            {#if !field.dependsOn || draft[field.dependsOn]}
-                                <label class="flex flex-col w-full" transition:fade>
-                                    <span class="font-bold text-lg">{field.label}</span>
-                                    {#if field.description}<span>{field.description}</span>{/if}
-                                    {#if field.type === 'boolean'}
-                                        <Checkbox label={boolDraft[field.key] ? 'On' : 'Off'} bind:checked={boolDraft[field.key]} />
-                                    {:else}
-                                        <select class="px-4 py-2 border border-gray-300" bind:value={numDraft[field.key]}>
-                                            {#each field.options as option}
-                                                <option value={option.value}>{option.label}</option>
-                                            {/each}
-                                        </select>
-                                    {/if}
-                                </label>
-                            {/if}
-                        {/each}
-                        <button class="px-4 py-2 bg-green text-black cursor-pointer text-xl disabled:opacity-50" disabled={status === 'saving'}>
-                            {status === 'saving' ? 'Saving..' : 'Save'}
-                        </button>
-                    </form>
-                </div>
-            {/if}
+            <span class="head__count">{liveCount}/{sitesAvailable.length} live</span>
         {/if}
+    </header>
+
+    <div class="body">
+        {#key currentTab}
+            <div in:fade={{ duration: 140 }}>
+                {#if currentTab === ''}
+                    <ul class="sites">
+                        {#each sitesAvailable as { name, enabled } (name)}
+                            <li class="site" class:site--live={enabled}>
+                                <span class="site__rail"></span>
+                                <button class="site__main" onclick={() => openSite(name)}>
+                                    <span class="site__name">{labelFor(name)}</span>
+                                    <span class="site__host">{name}</span>
+                                </button>
+                                <div class="site__side">
+                                    <span class="site__state">{enabled ? 'LIVE' : 'OFF'}</span>
+                                    <Toggle
+                                        checked={enabled}
+                                        label={`Toggle ${labelFor(name)}`}
+                                        onToggle={() => send({ type: 'TOGGLE', name })}
+                                    />
+                                </div>
+                            </li>
+                        {/each}
+                        {#if sitesAvailable.length === 0}
+                            <li class="skeleton"></li>
+                            <li class="skeleton"></li>
+                            <li class="skeleton"></li>
+                        {/if}
+                    </ul>
+                {:else}
+                    <button class="back" onclick={closeSite}>&#8592; all sites</button>
+
+                    {#if status === 'loading'}
+                        <div class="state">
+                            <div class="skeleton" style="width:100%"></div>
+                            <div class="skeleton" style="width:100%"></div>
+                        </div>
+                    {:else if !draft}
+                        <div class="state">
+                            <p class="notice notice--error">{notice || 'Could not load these settings.'}</p>
+                            <button class="ghost" onclick={() => requestSettings(currentTab)}>Retry</button>
+                        </div>
+                    {:else}
+                        <h1 class="editor__title">{labelFor(currentTab)}</h1>
+                        <div class="editor__host">{currentTab}</div>
+
+                        <!-- The mark's zigzag, reused as the section rule. -->
+                        <svg class="spike" viewBox="0 0 104 16" fill="none" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="spike-gradient" x1="0" y1="0" x2="1" y2="0">
+                                    <stop offset="0%" stop-color="#5b2bff" />
+                                    <stop offset="100%" stop-color="#ff00e5" />
+                                </linearGradient>
+                            </defs>
+                            <path
+                                d="M1 14 L12 14 L20 2 L28 14 L36 8 L44 14 L104 14"
+                                stroke="url(#spike-gradient)"
+                                stroke-width="2"
+                                stroke-linejoin="round"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+
+                        {#if notice}
+                            <p class="notice" class:notice--error={status === 'error'} transition:fade>{notice}</p>
+                        {/if}
+
+                        <form class="fields" onsubmit={handleSubmit}>
+                            <!-- Fields come from the schema, not from whichever keys the
+                                 stored config happens to carry. -->
+                            {#each fields as field (field.key)}
+                                {@const boolDraft = draft as Record<string, boolean>}
+                                {@const numDraft = draft as Record<string, number>}
+                                {#if !field.dependsOn || draft[field.dependsOn]}
+                                    <div class="field" class:field--switch={field.type === 'boolean'} transition:fade>
+                                        <div class="field__text">
+                                            <span class="field__label">{field.label}</span>
+                                            {#if field.description}<span class="field__desc">{field.description}</span>{/if}
+                                        </div>
+                                        {#if field.type === 'boolean'}
+                                            <Toggle bind:checked={boolDraft[field.key]} label={field.label} />
+                                        {:else}
+                                            <select class="select" bind:value={numDraft[field.key]}>
+                                                {#each field.options as option}
+                                                    <option value={option.value}>{option.label}</option>
+                                                {/each}
+                                            </select>
+                                        {/if}
+                                    </div>
+                                {/if}
+                            {/each}
+
+                            <button class="save" disabled={status === 'saving'}>
+                                {status === 'saving' ? 'Saving' : 'Save changes'}
+                            </button>
+                        </form>
+                    {/if}
+                {/if}
+            </div>
+        {/key}
     </div>
-{/key}
+</div>
