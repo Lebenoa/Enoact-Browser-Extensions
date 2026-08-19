@@ -66,7 +66,9 @@ export default function initYouTube() {
             paused,
             state: author ?? (paused ? 'Paused' : 'Playing'),
             channel_url: author && details?.channelId ? `https://www.youtube.com/channel/${details.channelId}` : undefined,
-            channel_thumbnail: author ? getChannelAvatar() : undefined,
+            // Prefer the shim's copy: the rendered avatar is lazy-loaded and
+            // stays src-less while the tab is in the background.
+            channel_thumbnail: author ? response?.channelAvatar ?? getChannelAvatar() : undefined,
         }
     }
 

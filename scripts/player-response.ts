@@ -30,6 +30,10 @@ export type PlayerResponse = {
         playerMicroformatRenderer?: MicroformatRenderer
         microformatDataRenderer?: MicroformatRenderer
     }
+    // Added by the MAIN-world shim, not part of YouTube's player response: the
+    // channel avatar, which the shim can reach in a hidden tab where the
+    // rendered <img> has no src yet. Absent on the embedded-JSON fallback path.
+    channelAvatar?: string
 }
 
 // Watch pages carry playerMicroformatRenderer; YouTube Music serves

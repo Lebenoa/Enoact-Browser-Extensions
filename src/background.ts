@@ -130,6 +130,7 @@ function playerResponseShim() {
                             liveBroadcastDetails: micro?.liveBroadcastDetails,
                         },
                     },
+                    channelAvatar: ownerAvatar(details.author),
                 }),
             )
         } catch {
@@ -137,6 +138,30 @@ function playerResponseShim() {
             // falls back to the embedded JSON.
         }
     })
+
+    // The rendered channel avatar is lazy-loaded, so in a background tab the
+    // <img> exists with no src at all and the site script gets nothing. The
+    // watch page's own component data carries the same URL, stays in sync
+    // across SPA navigation, and needs no rendering — but it lives on a JS
+    // property, which only the MAIN world can see.
+    function ownerAvatar(author?: string): string | undefined {
+        const flexy = document.querySelector('ytd-watch-flexy') as any
+        const contents = flexy?.data?.contents?.twoColumnWatchNextResults?.results?.results?.contents
+        if (!Array.isArray(contents)) return undefined
+
+        for (const item of contents) {
+            const owner = item?.videoSecondaryInfoRenderer?.owner?.videoOwnerRenderer
+            const thumbnails = owner?.thumbnail?.thumbnails
+            if (!Array.isArray(thumbnails) || thumbnails.length === 0) continue
+            // Guard against a half-finished navigation handing back the
+            // previous video's owner: only trust it when it agrees with the
+            // player, which is the authority for what is actually loaded.
+            const name = owner?.title?.runs?.[0]?.text
+            if (author && name && name !== author) return undefined
+            return thumbnails[thumbnails.length - 1]?.url
+        }
+        return undefined
+    }
 }
 
 async function injectPlayerResponseShim(tabId: number) {
