@@ -14,7 +14,7 @@ type InitialState = {
 }
 
 export default function initTwitch() {
-    const site = createSiteScript<Config>({ enabled: true, status_display_type: StatusDisplayType.State }, buildActivity)
+    const site = createSiteScript('www.twitch.tv', buildActivity)
 
     // Twitch SPA navigation fires no page event we can hook from here, so
     // poll the path and restart the client on change.

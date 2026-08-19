@@ -29,6 +29,6 @@ export type SidebarMessage =
 export type BackgroundMessage =
     | { type: 'SETTINGS_LIST'; items: { name: string; enabled: boolean }[] }
     | { type: 'TOGGLE'; name: string; enabled: boolean }
-    | { type: 'GET_SETTINGS'; settings: Config }
+    | { type: 'GET_SETTINGS'; site: string; settings: Config }
     | { type: 'SUCCESS'; message: string }
     | { type: 'ERROR'; message: string };

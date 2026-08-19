@@ -4,7 +4,7 @@ import { ActivityType, StatusDisplayType } from '../src/activity'
 import type { Config } from '../src/types'
 
 export default function initYouTubeMusic() {
-    const site = createSiteScript<Config>({ enabled: true, status_display_type: StatusDisplayType.Details }, buildActivity)
+    const site = createSiteScript('music.youtube.com', buildActivity)
     window.addEventListener('yt-navigate-finish', site.restart)
     return site.stop
 

@@ -1,23 +1,8 @@
 import { api, isFirefoxLike } from './api'
-import { StatusDisplayType } from './activity'
+import { SITE_SCHEMAS, coerceConfig } from './settings-schema'
 import type { BackgroundMessage, Config, SaveSettings, Settings, SidebarMessage } from './types'
 
 const SETTINGS_KEY = 'enoact_settings'
-
-const defaultSettings: Settings = {
-    'www.youtube.com': {
-        script: './scripts/youtube.js',
-        config: { enabled: true, channel_info: true, status_display_type: StatusDisplayType.Details },
-    },
-    'music.youtube.com': {
-        script: './scripts/youtube-music.js',
-        config: { enabled: true, status_display_type: StatusDisplayType.Details },
-    },
-    'www.twitch.tv': {
-        script: './scripts/twitch.js',
-        config: { enabled: true, status_display_type: StatusDisplayType.State },
-    },
-}
 
 if (isFirefoxLike) {
     api.browserAction.onClicked.addListener(() => api.sidebarAction.open())
@@ -43,20 +28,13 @@ async function broadcastConfig(host: string) {
     }
 }
 
+// Rebuilds settings from the schema on every read: sites the schema no longer
+// knows are dropped, and each config is coerced to exactly the site's current
+// keys, so a removed or retyped setting needs no migration here.
 function mergeWithDefaults(saved: Partial<Settings>): Settings {
-    const merged = structuredClone(defaultSettings)
-    for (const [site, siteSettings] of Object.entries(saved)) {
-        if (!(site in defaultSettings) || !siteSettings) continue
-        merged[site] = {
-            ...defaultSettings[site],
-            ...siteSettings,
-            config: { ...defaultSettings[site].config, ...siteSettings.config },
-        }
-    }
-    // Migrate away from removed config keys (robust_info's popup scraping was
-    // replaced by ytInitialPlayerResponse data).
-    for (const siteSettings of Object.values(merged)) {
-        delete (siteSettings.config as Record<string, unknown>).robust_info
+    const merged: Settings = {}
+    for (const [site, schema] of Object.entries(SITE_SCHEMAS)) {
+        merged[site] = { script: schema.script, config: coerceConfig(site, saved[site]?.config) }
     }
     return merged
 }
@@ -73,11 +51,11 @@ async function getSettings(): Promise<Settings> {
     if (settingsCache) return settingsCache
     try {
         const stored = await api.storage.sync.get(SETTINGS_KEY)
-        settingsCache = stored[SETTINGS_KEY] ? mergeWithDefaults(stored[SETTINGS_KEY]) : structuredClone(defaultSettings)
+        settingsCache = mergeWithDefaults(stored[SETTINGS_KEY] ?? {})
         return settingsCache
     } catch (error) {
         console.error('Failed to get settings:', error)
-        return structuredClone(defaultSettings)
+        return mergeWithDefaults({})
     }
 }
 
@@ -224,7 +202,7 @@ api.runtime.onConnect.addListener((port: any) => {
     void getSettings().then((settings) => {
         const response: BackgroundMessage = {
             type: 'SETTINGS_LIST',
-            items: Object.keys(defaultSettings).map((site) => ({
+            items: Object.keys(SITE_SCHEMAS).map((site) => ({
                 name: site,
                 enabled: settings[site].config.enabled,
             })),
@@ -250,15 +228,26 @@ api.runtime.onConnect.addListener((port: any) => {
                 case 'GET_SETTINGS': {
                     const settings = await getSettings()
                     const site = settings[message.site]
-                    if (site) port.postMessage({ type: 'GET_SETTINGS', settings: site.config } satisfies BackgroundMessage)
+                    // Always answer, so the sidebar can leave its loading state
+                    // even when it asked about a site the schema dropped.
+                    port.postMessage(
+                        site
+                            ? ({ type: 'GET_SETTINGS', site: message.site, settings: site.config } satisfies BackgroundMessage)
+                            : ({ type: 'ERROR', message: `No settings for ${message.site}` } satisfies BackgroundMessage),
+                    )
                     break
                 }
-                case 'UPDATE_SETTINGS':
-                    if (!defaultSettings[message.name]) return
-                    await saveSettings({ [message.name]: { config: message.settings } })
+                case 'UPDATE_SETTINGS': {
+                    if (!SITE_SCHEMAS[message.name]) return
+                    // Coerce before storing: the panel is the only sender today,
+                    // but storage should never hold a shape the schema rejects.
+                    const config = coerceConfig(message.name, message.settings)
+                    await saveSettings({ [message.name]: { config } })
+                    port.postMessage({ type: 'GET_SETTINGS', site: message.name, settings: config } satisfies BackgroundMessage)
                     port.postMessage({ type: 'SUCCESS', message: 'Settings updated successfully' } satisfies BackgroundMessage)
                     await broadcastConfig(message.name)
                     break
+                }
             }
         } catch (error) {
             console.error('Sidebar request failed:', error)
