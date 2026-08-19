@@ -1,5 +1,5 @@
 import { createSiteScript } from './site-script'
-import { getPlayerResponse, isVideoPaused } from './player-response'
+import { getMicroformat, getPlayerResponse, isVideoPaused } from './player-response'
 import type { Config } from '../src/types'
 
 export default function initYouTube() {
@@ -44,7 +44,7 @@ export default function initYouTube() {
     function getVideoInfo(showChannelInfo: boolean) {
         const response = getPlayerResponse()
         const details = response?.videoDetails
-        const microformat = response?.microformat?.playerMicroformatRenderer
+        const microformat = getMicroformat(response)
         const player = document.getElementById('movie_player') as any
         const video = document.querySelector('video')
         const videoId = details?.videoId

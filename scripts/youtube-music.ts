@@ -1,5 +1,5 @@
 import { createSiteScript } from './site-script'
-import { getPlayerResponse, isVideoPaused } from './player-response'
+import { getPlayerResponse, getThumbnailUrl, isVideoPaused } from './player-response'
 import type { Config } from '../src/types'
 
 export default function initYouTubeMusic() {
@@ -36,7 +36,6 @@ export default function initYouTubeMusic() {
     function getTrackInfo() {
         const response = getPlayerResponse()
         const details = response?.videoDetails
-        const microformat = response?.microformat?.playerMicroformatRenderer
         const player = document.getElementById('movie_player') as any
         const video = document.querySelector('video')
         const progress = document.querySelector("tp-yt-paper-slider[id='progress-bar'][value][aria-valuemax]")
@@ -48,7 +47,7 @@ export default function initYouTubeMusic() {
 
         return {
             title: details?.title,
-            thumbnail: microformat?.thumbnail?.thumbnails?.[0]?.url,
+            thumbnail: getThumbnailUrl(response),
             url: videoId ? `https://music.youtube.com/watch?v=${videoId}` : undefined,
             artist: details?.author,
             artist_url: details?.channelId ? `https://music.youtube.com/channel/${details.channelId}` : undefined,

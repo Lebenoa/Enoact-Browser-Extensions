@@ -128,7 +128,10 @@ function playerResponseShim() {
         try {
             const response = (document.getElementById('movie_player') as any)?.getPlayerResponse?.()
             const details = response?.videoDetails
-            const micro = response?.microformat?.playerMicroformatRenderer
+            // YouTube Music uses microformatDataRenderer where watch pages use
+            // playerMicroformatRenderer; normalize to the latter so readers see
+            // one shape.
+            const micro = response?.microformat?.playerMicroformatRenderer ?? response?.microformat?.microformatDataRenderer
             if (!details?.videoId) return
             document.documentElement.setAttribute(
                 ATTR,
@@ -140,6 +143,7 @@ function playerResponseShim() {
                         channelId: details.channelId,
                         lengthSeconds: details.lengthSeconds,
                         isLiveContent: details.isLiveContent,
+                        thumbnail: details.thumbnail,
                     },
                     microformat: {
                         playerMicroformatRenderer: {

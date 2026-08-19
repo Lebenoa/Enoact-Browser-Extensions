@@ -9,6 +9,13 @@ export function isVideoPaused(video: HTMLVideoElement | null, fromPlayerApi: () 
     return video ? video.paused : fromPlayerApi()
 }
 
+export type Thumbnails = { thumbnails?: { url?: string; width?: number; height?: number }[] }
+
+export type MicroformatRenderer = {
+    thumbnail?: Thumbnails
+    liveBroadcastDetails?: { isLiveNow?: boolean }
+}
+
 export type PlayerResponse = {
     videoDetails?: {
         videoId?: string
@@ -17,13 +24,37 @@ export type PlayerResponse = {
         channelId?: string
         lengthSeconds?: string | number
         isLiveContent?: boolean
+        thumbnail?: Thumbnails
     }
     microformat?: {
-        playerMicroformatRenderer?: {
-            thumbnail?: { thumbnails?: { url?: string }[] }
-            liveBroadcastDetails?: { isLiveNow?: boolean }
-        }
+        playerMicroformatRenderer?: MicroformatRenderer
+        microformatDataRenderer?: MicroformatRenderer
     }
+}
+
+// Watch pages carry playerMicroformatRenderer; YouTube Music serves
+// microformatDataRenderer instead, and sometimes neither.
+export function getMicroformat(response: PlayerResponse | undefined): MicroformatRenderer | undefined {
+    const microformat = response?.microformat
+    return microformat?.playerMicroformatRenderer ?? microformat?.microformatDataRenderer
+}
+
+// Prefer videoDetails.thumbnail: it is the only thumbnail YouTube Music
+// reliably returns (album art, not a video frame), and it is present on watch
+// pages too. Falls back to the microformat thumbnail, then to the generated
+// i.ytimg URL, which exists for any video id.
+export function getThumbnailUrl(response: PlayerResponse | undefined): string | undefined {
+    const candidates = response?.videoDetails?.thumbnail?.thumbnails ?? []
+    const largest = candidates.reduce<{ url?: string; width?: number } | undefined>(
+        (best, current) => ((current.width ?? 0) >= (best?.width ?? 0) ? current : best),
+        undefined,
+    )
+    const videoId = response?.videoDetails?.videoId
+    return (
+        largest?.url ??
+        getMicroformat(response)?.thumbnail?.thumbnails?.[0]?.url ??
+        (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : undefined)
+    )
 }
 
 // Returns the player response for the currently loaded video. This script runs
