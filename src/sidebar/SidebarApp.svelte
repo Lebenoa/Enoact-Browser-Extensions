@@ -2,20 +2,32 @@
     import Checkbox from './Checkbox.svelte';
     import iconUrl from '../images/icon.png';
     import { fade } from 'svelte/transition';
+    import { StatusDisplayType } from '../activity';
     import type { BackgroundMessage, Config, SidebarMessage } from '../types';
 
     type SettingsInfo = {
         rename?: string;
         description?: string;
-        type?: 'boolean' | 'string';
+        type?: 'boolean' | 'string' | 'select';
+        options?: { value: number; label: string }[];
         dependsOn?: string;
     };
 
     const logo = iconUrl;
+    const STATUS_DISPLAY_OPTIONS = [
+        { value: StatusDisplayType.Name, label: 'Name — the site name' },
+        { value: StatusDisplayType.State, label: 'State — the channel or artist' },
+        { value: StatusDisplayType.Details, label: 'Details — the video or track title' },
+    ];
     const SETTINGS_INFO: Record<string, SettingsInfo> = {
         enabled: { rename: 'Enabled', description: 'Disable/enable the extension on this site', type: 'boolean' },
         channel_info: { rename: 'Channel Info', description: 'Display channel icon on the small image', type: 'boolean' },
-        status_display_type: { rename: 'Status Display Type', type: 'string' },
+        status_display_type: {
+            rename: 'Status Display Type',
+            description: 'Which line Discord shows next to your name in the member list',
+            type: 'select',
+            options: STATUS_DISPLAY_OPTIONS,
+        },
     };
     const buttonClass = 'px-4 py-2 border border-gray-300 bg-transparent hover:bg-gray-100 transition-colors duration-300 cursor-pointer';
 
@@ -106,12 +118,19 @@
                         {#each Object.entries(settings) as [key, value]}
                             {@const info = SETTINGS_INFO[key]}
                             {@const boolSettings = settings as Record<string, boolean>}
+                            {@const numSettings = settings as Record<string, number>}
                             {#if !info?.dependsOn || settings[info.dependsOn]}
                                 <label class="flex flex-col w-full" transition:fade>
                                     <span class="font-bold text-lg">{info?.rename ?? key}</span>
                                     {#if info?.description}<span>{info.description}</span>{/if}
                                     {#if info?.type === 'boolean'}
                                         <Checkbox label={String(value)} bind:checked={boolSettings[key]} />
+                                    {:else if info?.type === 'select' && info.options}
+                                        <select class="px-4 py-2 border border-gray-300" bind:value={numSettings[key]}>
+                                            {#each info.options as option}
+                                                <option value={option.value}>{option.label}</option>
+                                            {/each}
+                                        </select>
                                     {:else}
                                         <input class="px-4 py-2 border border-gray-300" type="text" value={value ?? ''} onchange={(e) => {
                                             const input = e.currentTarget as HTMLInputElement;

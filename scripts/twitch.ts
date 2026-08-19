@@ -1,5 +1,6 @@
 import { createSiteScript } from './site-script'
 import { extractEmbeddedJson } from './embedded-json'
+import { ActivityType, StatusDisplayType } from '../src/activity'
 import type { Config } from '../src/types'
 
 type InitialState = {
@@ -13,7 +14,7 @@ type InitialState = {
 }
 
 export default function initTwitch() {
-    const site = createSiteScript<Config>({ enabled: true }, buildActivity)
+    const site = createSiteScript<Config>({ enabled: true, status_display_type: StatusDisplayType.State }, buildActivity)
 
     // Twitch SPA navigation fires no page event we can hook from here, so
     // poll the path and restart the client on change.
@@ -36,8 +37,8 @@ export default function initTwitch() {
 
         return {
             name: 'Twitch',
-            type: 3,
-            status_display_type: config.status_display_type ?? 1,
+            type: ActivityType.Watching,
+            status_display_type: config.status_display_type ?? StatusDisplayType.State,
             details: info.title,
             details_url: info.url,
             state: info.channel ?? '<BLANK>',

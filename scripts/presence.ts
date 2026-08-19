@@ -6,7 +6,9 @@
 // current payload is re-sent after (re)connecting, since the server may
 // have lost state.
 
-export type PresenceActivity = Record<string, unknown>
+import type { Activity } from '../src/activity'
+
+export type PresenceActivity = Activity
 
 const CORE_URL = 'ws://127.0.0.1:5579/ws'
 const UPDATE_DELAY = 3000

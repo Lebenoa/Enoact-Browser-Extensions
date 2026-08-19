@@ -1,9 +1,10 @@
 import { createSiteScript } from './site-script'
 import { getPlayerResponse, getThumbnailUrl, isVideoPaused } from './player-response'
+import { ActivityType, StatusDisplayType } from '../src/activity'
 import type { Config } from '../src/types'
 
 export default function initYouTubeMusic() {
-    const site = createSiteScript<Config>({ enabled: true }, buildActivity)
+    const site = createSiteScript<Config>({ enabled: true, status_display_type: StatusDisplayType.Details }, buildActivity)
     window.addEventListener('yt-navigate-finish', site.restart)
     return site.stop
 
@@ -15,8 +16,8 @@ export default function initYouTubeMusic() {
         const now = Date.now()
         return {
             name: 'YouTube Music',
-            type: 2,
-            status_display_type: config.status_display_type ?? 2,
+            type: ActivityType.Listening,
+            status_display_type: config.status_display_type ?? StatusDisplayType.Details,
             details: info.title,
             details_url: info.url,
             state: info.artist ?? '<BLANK>',

@@ -1,4 +1,5 @@
 import { api, isFirefoxLike } from './api'
+import { StatusDisplayType } from './activity'
 import type { BackgroundMessage, Config, SaveSettings, Settings, SidebarMessage } from './types'
 
 const SETTINGS_KEY = 'enoact_settings'
@@ -6,15 +7,15 @@ const SETTINGS_KEY = 'enoact_settings'
 const defaultSettings: Settings = {
     'www.youtube.com': {
         script: './scripts/youtube.js',
-        config: { enabled: true, channel_info: true },
+        config: { enabled: true, channel_info: true, status_display_type: StatusDisplayType.Details },
     },
     'music.youtube.com': {
         script: './scripts/youtube-music.js',
-        config: { enabled: true },
+        config: { enabled: true, status_display_type: StatusDisplayType.Details },
     },
     'www.twitch.tv': {
         script: './scripts/twitch.js',
-        config: { enabled: true },
+        config: { enabled: true, status_display_type: StatusDisplayType.State },
     },
 }
 

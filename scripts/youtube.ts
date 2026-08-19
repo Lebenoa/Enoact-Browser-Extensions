@@ -1,9 +1,13 @@
 import { createSiteScript } from './site-script'
 import { getMicroformat, getPlayerResponse, isVideoPaused } from './player-response'
+import { ActivityType, StatusDisplayType } from '../src/activity'
 import type { Config } from '../src/types'
 
 export default function initYouTube() {
-    const site = createSiteScript<Config>({ enabled: true, channel_info: true }, buildActivity)
+    const site = createSiteScript<Config>(
+        { enabled: true, channel_info: true, status_display_type: StatusDisplayType.Details },
+        buildActivity,
+    )
     window.addEventListener('yt-navigate-finish', site.restart)
     return site.stop
 
@@ -16,8 +20,8 @@ export default function initYouTube() {
         const now = Date.now()
         return {
             name: 'YouTube',
-            type: 3,
-            status_display_type: config.status_display_type ?? 2,
+            type: ActivityType.Watching,
+            status_display_type: config.status_display_type ?? StatusDisplayType.Details,
             details: info.title,
             details_url: info.url,
             state: info.state,

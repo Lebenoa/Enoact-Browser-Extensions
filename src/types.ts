@@ -1,7 +1,9 @@
+import type { StatusDisplayType } from './activity';
+
 export type Config = {
     enabled: boolean;
     channel_info?: boolean;
-    status_display_type?: number;
+    status_display_type?: StatusDisplayType;
 };
 
 export type Settings = {
