@@ -1,12 +1,13 @@
-<script>
-    import iconUrl from "../images/icon.png";
+<script lang="ts">
+    import iconUrl from '../images/icon.png';
+    import { isFirefoxLike } from '../api';
     const logo = iconUrl;
 
     function openSidebar() {
-        if (import.meta.env.EXTENSION_PUBLIC_BROWSER === "firefox") {
-            browser.runtime.sendMessage({ type: "openSidebar" });
+        if (isFirefoxLike) {
+            browser.runtime.sendMessage({ type: 'openSidebar' });
         } else {
-            chrome.runtime.sendMessage({ type: "openSidebar" });
+            chrome.runtime.sendMessage({ type: 'openSidebar' });
         }
     }
 </script>
@@ -15,7 +16,7 @@
     type="button"
     class="content_pill"
     aria-label="Open sidebar"
-    on:click={openSidebar}
+    onclick={openSidebar}
 >
     <img class="content_pill_logo" src={logo} alt="" aria-hidden="true" />
     <span class="content_pill_text">Open sidebar</span>

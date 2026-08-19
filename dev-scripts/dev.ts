@@ -16,88 +16,59 @@ type CP = ChildProcessWithoutNullStreams;
 function spawnProc(name: string, args: string[]): CP {
     const cp = spawn(name, args, { stdio: 'pipe', shell: false });
 
-    const attach = (stream: NodeJS.ReadableStream | null, label: string) => {
-        if (!stream) return;
+    for (const [stream, label] of [[cp.stdout, name], [cp.stderr, name]] as const) {
         const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-        rl.on('line', (line) => {
-            console.log(`[${label}] ${line}`);
-        });
-    };
+        rl.on('line', (line) => console.log(`[${label}] ${line}`));
+    }
 
-    attach(cp.stdout, name);
-    attach(cp.stderr, name);
-
-    cp.on('error', (err) => {
-        console.error(`[${name}] failed to start: ${err && err.message ? err.message : err}`);
-    });
-
-    cp.on('exit', (code, signal) => {
-        console.log(`[${name}] exited (code=${code ?? 'null'} signal=${signal ?? 'null'})`);
-    });
+    cp.on('error', (err) => console.error(`[${name}] failed to start: ${err.message}`));
+    cp.on('exit', (code, signal) => console.log(`[${name}] exited (code=${code ?? 'null'} signal=${signal ?? 'null'})`));
 
     return cp;
 }
 
-const extension = spawnProc('extension', ['dev']);
-const unocss = spawnProc('unocss', ['-w']);
+const children: CP[] = [spawnProc('extension', ['dev']), spawnProc('unocss', ['-w'])];
 
-const children: CP[] = [extension, unocss].filter(Boolean) as CP[];
+let stopping = false;
 
-let shuttingDown = false;
-function stopChildren(signal?: string) {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log(`Received ${signal ?? 'exit'} - stopping children...`);
+// Kill all children; resolves once every child has exited (or after 5s, when
+// stragglers are force-killed). Never calls process.exit itself — the caller
+// decides the exit code, so this is safe to re-enter from an 'exit' handler.
+function stopChildren(reason: string): Promise<void> {
+    if (stopping) return Promise.resolve();
+    stopping = true;
+    console.log(`${reason} - stopping children...`);
 
-    children.forEach((child) => {
-        if (!child || child.killed) return;
-        try {
-            child.kill('SIGTERM');
-        } catch (e) {
-            console.error('Error sending SIGTERM to child', e);
-        }
+    for (const child of children) {
+        if (!child.killed) child.kill('SIGTERM');
+    }
+
+    const forceKill = new Promise<void>((resolve) => {
+        setTimeout(() => {
+            for (const child of children) {
+                if (!child.killed) child.kill('SIGKILL');
+            }
+            resolve();
+        }, 5000);
     });
 
-    // Force kill after 5s
-    const force = setTimeout(() => {
-        console.log('Forcing kill of remaining children');
-        children.forEach((child) => {
-            try {
-                if (!child.killed) child.kill('SIGKILL');
-            } catch { }
-        });
-        process.exit(1);
-    }, 5000);
+    const allExited = Promise.all(
+        children.map((child) => new Promise<void>((resolve) => child.once('exit', resolve))),
+    );
 
-    // Wait for children to exit (or timeout)
-    Promise.all(children.map((child) =>
-        new Promise<void>((resolve) => {
-            if (!child) return resolve();
-            const onExit = () => resolve();
-            child.once('exit', onExit);
-            // Fallback: resolve after 3s in case exit isn't emitted
-            setTimeout(() => {
-                try { child.removeListener('exit', onExit); } catch { };
-                resolve();
-            }, 3000);
-        })
-    ))
-        .then(() => {
-            clearTimeout(force);
-            process.exit(0);
-        })
-        .catch((err) => {
-            console.error('Error while waiting for children to exit', err);
-            process.exit(1);
-        });
+    return Promise.race([forceKill, allExited]).then(() => undefined);
 }
 
-process.on('SIGINT', () => stopChildren('SIGINT'));
-process.on('SIGTERM', () => stopChildren('SIGTERM'));
+process.on('SIGINT', () => void stopChildren('SIGINT').then(() => process.exit(0)));
+process.on('SIGTERM', () => void stopChildren('SIGTERM').then(() => process.exit(0)));
 process.on('uncaughtException', (err) => {
     console.error('uncaughtException', err);
-    stopChildren('uncaughtException');
+    void stopChildren('uncaughtException').then(() => process.exit(1));
 });
-
-// In case the parent exits for other reasons, attempt to stop children
-process.on('exit', () => stopChildren('exit'));
+// In case the parent exits for other reasons, attempt to stop children.
+process.on('exit', () => {
+    stopping = false; // allow the synchronous kill pass below even after a stopChildren run
+    for (const child of children) {
+        if (!child.killed) child.kill('SIGKILL');
+    }
+});

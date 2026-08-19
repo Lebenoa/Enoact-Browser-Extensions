@@ -1,4 +1,5 @@
 import { api, isFirefoxLike } from './api'
+import type { BackgroundMessage, Config, SaveSettings, Settings, SidebarMessage } from './types'
 
 const SETTINGS_KEY = 'enoact_settings'
 
@@ -16,13 +17,6 @@ const defaultSettings: Settings = {
         config: { enabled: true },
     },
 }
-
-type SidebarResponse =
-    | { type: 'SETTINGS_LIST'; items: { name: string; enabled: boolean }[] }
-    | { type: 'TOGGLE'; name: string; enabled: boolean }
-    | { type: 'GET_SETTINGS'; settings: Config }
-    | { type: 'SUCCESS'; message: string }
-    | { type: 'ERROR'; message: string }
 
 if (isFirefoxLike) {
     api.browserAction.onClicked.addListener(() => api.sidebarAction.open())
@@ -102,6 +96,62 @@ async function sendConfig(tabId: number, config: Config) {
     }
 }
 
+// Site scripts run in the ISOLATED world, so they cannot call page-JS APIs
+// like movie_player.getPlayerResponse() — without this shim they would fall
+// back to the ytInitialPlayerResponse JSON embedded in the initial HTML,
+// which goes stale on SPA navigation (e.g. autoplay advancing to the next
+// video in an unfocused tab). The shim runs in the MAIN world and answers a
+// DOM event by writing the live player response into a data attribute —
+// events and attributes cross worlds, JS object payloads do not.
+function playerResponseShim() {
+    const ATTR = 'data-enoact-player-response'
+    const w = window as { __enoactPlayerShim?: boolean }
+    if (w.__enoactPlayerShim) return
+    w.__enoactPlayerShim = true
+    window.addEventListener('enoact-player-request', () => {
+        try {
+            const response = (document.getElementById('movie_player') as any)?.getPlayerResponse?.()
+            const details = response?.videoDetails
+            const micro = response?.microformat?.playerMicroformatRenderer
+            if (!details?.videoId) return
+            document.documentElement.setAttribute(
+                ATTR,
+                JSON.stringify({
+                    videoDetails: {
+                        videoId: details.videoId,
+                        title: details.title,
+                        author: details.author,
+                        channelId: details.channelId,
+                        lengthSeconds: details.lengthSeconds,
+                        isLiveContent: details.isLiveContent,
+                    },
+                    microformat: {
+                        playerMicroformatRenderer: {
+                            thumbnail: micro?.thumbnail,
+                            liveBroadcastDetails: micro?.liveBroadcastDetails,
+                        },
+                    },
+                }),
+            )
+        } catch {
+            // Player not ready yet — leave the previous value in place.
+        }
+    })
+}
+
+async function injectPlayerResponseShim(tabId: number) {
+    try {
+        await api.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: playerResponseShim,
+        })
+    } catch {
+        // Older Firefox builds don't support world: 'MAIN'; the site scripts'
+        // embedded-JSON fallback still works there, just stale on navigation.
+    }
+}
+
 api.webNavigation.onCommitted.addListener(async (details: any) => {
     if (details.frameId !== 0) return
 
@@ -111,6 +161,7 @@ api.webNavigation.onCommitted.addListener(async (details: any) => {
     if (!siteSetting?.script || !siteSetting.config.enabled) return
 
     try {
+        await injectPlayerResponseShim(details.tabId)
         await api.scripting.executeScript({
             target: { tabId: details.tabId },
             files: [siteSetting.script],
@@ -143,7 +194,7 @@ api.runtime.onConnect.addListener((port: any) => {
     if (port.name !== 'sidebar') return
 
     void getSettings().then((settings) => {
-        const response: SidebarResponse = {
+        const response: BackgroundMessage = {
             type: 'SETTINGS_LIST',
             items: Object.keys(defaultSettings).map((site) => ({
                 name: site,
@@ -164,26 +215,26 @@ api.runtime.onConnect.addListener((port: any) => {
                     if (!site) return
                     const enabled = !site.config.enabled
                     await saveSettings({ [message.name]: { config: { ...site.config, enabled } } })
-                    port.postMessage({ type: 'TOGGLE', name: message.name, enabled } satisfies SidebarResponse)
+                    port.postMessage({ type: 'TOGGLE', name: message.name, enabled } satisfies BackgroundMessage)
                     await broadcastConfig(message.name)
                     break
                 }
                 case 'GET_SETTINGS': {
                     const settings = await getSettings()
                     const site = settings[message.site]
-                    if (site) port.postMessage({ type: 'GET_SETTINGS', settings: site.config } satisfies SidebarResponse)
+                    if (site) port.postMessage({ type: 'GET_SETTINGS', settings: site.config } satisfies BackgroundMessage)
                     break
                 }
                 case 'UPDATE_SETTINGS':
                     if (!defaultSettings[message.name]) return
                     await saveSettings({ [message.name]: { config: message.settings } })
-                    port.postMessage({ type: 'SUCCESS', message: 'Settings updated successfully' } satisfies SidebarResponse)
+                    port.postMessage({ type: 'SUCCESS', message: 'Settings updated successfully' } satisfies BackgroundMessage)
                     await broadcastConfig(message.name)
                     break
             }
         } catch (error) {
             console.error('Sidebar request failed:', error)
-            port.postMessage({ type: 'ERROR', message: 'Failed to save settings' } satisfies SidebarResponse)
+            port.postMessage({ type: 'ERROR', message: 'Failed to save settings' } satisfies BackgroundMessage)
         }
         })()
     })

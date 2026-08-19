@@ -1,14 +1,13 @@
-import { createPresenceClient } from './presence'
-import { getPlayerResponse } from './player-response'
-
-type Config = { enabled: boolean; status_display_type?: number }
+import { createSiteScript } from './site-script'
+import { getPlayerResponse, isVideoPaused } from './player-response'
+import type { Config } from '../src/types'
 
 export default function initYouTubeMusic() {
-    let config: Config = { enabled: true }
+    const site = createSiteScript<Config>({ enabled: true }, buildActivity)
+    window.addEventListener('yt-navigate-finish', site.restart)
+    return site.stop
 
-    chrome.runtime.sendMessage({ type: 'CONFIG_REQUEST' })
-
-    const client = createPresenceClient(() => {
+    function buildActivity(config: Config) {
         if (!config.enabled) return null
         const info = getTrackInfo()
         if (!info.title) return null
@@ -32,17 +31,7 @@ export default function initYouTubeMusic() {
                   }
                 : undefined,
         }
-    })
-
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'CONFIG') {
-            config = message.config
-            // Apply immediately: a disabled site clears, an edit re-pushes.
-            client.restart()
-        }
-    })
-
-    window.addEventListener('yt-navigate-finish', () => client.restart())
+    }
 
     function getTrackInfo() {
         const response = getPlayerResponse()
@@ -55,12 +44,7 @@ export default function initYouTubeMusic() {
         const videoId = details?.videoId
 
         const state = player?.getPlayerState?.()
-        // Prefer the live media element for playback state: the browser keeps
-        // media-element properties (currentTime, paused) current even in hidden
-        // tabs, while the player API's getters go stale there because their
-        // clocks are driven by page JS, which browsers throttle when the tab is
-        // unfocused. Embedded JSON stays the source for static metadata.
-        const playing = video ? !video.paused : state === 1 || state === 3 || (state === undefined && playButton === 'Pause')
+        const playing = !isVideoPaused(video, () => state === 1 || state === 3 || (state === undefined && playButton === 'Pause'))
 
         return {
             title: details?.title,
@@ -73,6 +57,4 @@ export default function initYouTubeMusic() {
             isPlaying: playing,
         }
     }
-
-    return () => client.stop()
 }

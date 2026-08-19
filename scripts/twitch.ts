@@ -1,7 +1,6 @@
-import { createPresenceClient } from './presence'
+import { createSiteScript } from './site-script'
 import { extractEmbeddedJson } from './embedded-json'
-
-type Config = { enabled: boolean; status_display_type?: number }
+import type { Config } from '../src/types'
 
 type InitialState = {
     stream?: {
@@ -14,12 +13,23 @@ type InitialState = {
 }
 
 export default function initTwitch() {
-    let config: Config = { enabled: true }
+    const site = createSiteScript<Config>({ enabled: true }, buildActivity)
 
-    chrome.runtime.sendMessage({ type: 'CONFIG_REQUEST' })
-
+    // Twitch SPA navigation fires no page event we can hook from here, so
+    // poll the path and restart the client on change.
     let lastPath = location.pathname
-    const client = createPresenceClient(() => {
+    const routeWatcher = setInterval(() => {
+        if (location.pathname === lastPath) return
+        lastPath = location.pathname
+        site.restart()
+    }, 500)
+
+    return () => {
+        clearInterval(routeWatcher)
+        site.stop()
+    }
+
+    function buildActivity(config: Config) {
         if (!config.enabled) return null
         const info = getStreamInfo()
         if (!info.title) return null
@@ -40,25 +50,6 @@ export default function initTwitch() {
                 small_url: info.channel_url,
             },
         }
-    })
-
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'CONFIG') {
-            config = message.config
-            // Apply immediately: a disabled site clears, an edit re-pushes.
-            client.restart()
-        }
-    })
-
-    const routeWatcher = setInterval(() => {
-        if (location.pathname === lastPath) return
-        lastPath = location.pathname
-        client.restart()
-    }, 500)
-
-    return () => {
-        clearInterval(routeWatcher)
-        client.stop()
     }
 
     function getChannelName() {

@@ -1,21 +1,16 @@
-import { createPresenceClient } from './presence'
-import { getPlayerResponse } from './player-response'
-
-type Config = {
-    enabled: boolean
-    channel_info?: boolean
-    status_display_type?: number
-}
+import { createSiteScript } from './site-script'
+import { getPlayerResponse, isVideoPaused } from './player-response'
+import type { Config } from '../src/types'
 
 export default function initYouTube() {
-    let config: Config = { enabled: true, channel_info: true }
+    const site = createSiteScript<Config>({ enabled: true, channel_info: true }, buildActivity)
+    window.addEventListener('yt-navigate-finish', site.restart)
+    return site.stop
 
-    chrome.runtime.sendMessage({ type: 'CONFIG_REQUEST' })
-
-    const client = createPresenceClient(() => {
+    function buildActivity(config: Config) {
         if (!config.enabled) return null
         if (window.location.pathname !== '/watch') return null
-        const info = getVideoInfo()
+        const info = getVideoInfo(config.channel_info === true)
         if (!info.title) return null
 
         const now = Date.now()
@@ -31,7 +26,7 @@ export default function initYouTube() {
                 large_image: info.thumbnail,
                 large_text: info.title,
                 large_url: info.url,
-                small_image: info.channel_thumbnail,
+                small_image: info.channel_thumbnail == '' ? undefined : info.channel_thumbnail,
                 small_text: info.state,
                 small_url: info.channel_url,
             },
@@ -44,19 +39,9 @@ export default function initYouTube() {
                       end: info.isLive ? undefined : Math.round(now + (info.duration - info.current_time) * 1000),
                   },
         }
-    })
+    }
 
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'CONFIG') {
-            config = message.config
-            // Apply immediately: a disabled site clears, an edit re-pushes.
-            client.restart()
-        }
-    })
-
-    window.addEventListener('yt-navigate-finish', () => client.restart())
-
-    function getVideoInfo() {
+    function getVideoInfo(showChannelInfo: boolean) {
         const response = getPlayerResponse()
         const details = response?.videoDetails
         const microformat = response?.microformat?.playerMicroformatRenderer
@@ -64,14 +49,9 @@ export default function initYouTube() {
         const video = document.querySelector('video')
         const videoId = details?.videoId
 
-        const author = config.channel_info ? details?.author : undefined
+        const author = showChannelInfo ? details?.author : undefined
         const playerState = player?.getPlayerState?.()
-        // Prefer the live media element for playback state: the browser keeps
-        // media-element properties (currentTime, paused, duration) current even
-        // in hidden tabs, while the player API's getters go stale there because
-        // their clocks are driven by page JS, which browsers throttle when the
-        // tab is unfocused. Embedded JSON stays the source for static metadata.
-        const paused = video ? !!video.paused : playerState !== 1 && playerState !== 3
+        const paused = isVideoPaused(video, () => playerState !== 1 && playerState !== 3)
 
         return {
             title: details?.title,
@@ -92,6 +72,4 @@ export default function initYouTube() {
     function getChannelAvatar() {
         return (document.querySelector('#owner yt-img-shadow#avatar img') as HTMLImageElement | null)?.src
     }
-
-    return () => client.stop()
 }

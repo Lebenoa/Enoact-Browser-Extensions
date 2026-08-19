@@ -6,7 +6,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
     "lib": ["dom", "dom.iterable", "esnext"],
     "moduleResolution": "bundler",
     "module": "esnext",
@@ -19,5 +18,5 @@
     "skipLibCheck": true
   },
   "include": ["./", "extension-env.d.ts"],
-  "exclude": ["node_modules", "dist", "template.spec.ts"]
+  "exclude": ["node_modules", "dist"]
 }
