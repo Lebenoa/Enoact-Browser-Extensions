@@ -6,7 +6,7 @@
 // happens to contain.
 
 import { StatusDisplayType } from './activity';
-import type { Config } from './types';
+import { UpdateMode, type Config } from './types';
 
 export type FieldOption = { value: number; label: string };
 
@@ -14,8 +14,11 @@ type FieldBase = {
     key: keyof Config;
     label: string;
     description?: string;
-    // Hide this field while the named boolean setting is off.
+    // Hide this field unless the named setting is on (or, with dependsValue,
+    // equal to that value). Chains: a field whose parent is itself hidden is
+    // hidden too — see isFieldVisible.
     dependsOn?: keyof Config;
+    dependsValue?: number | boolean;
 };
 
 export type SettingsField =
@@ -44,6 +47,21 @@ const enabledField: SettingsField = {
     default: true,
 };
 
+export const UPDATE_MODE_OPTIONS: FieldOption[] = [
+    { value: UpdateMode.Poll, label: 'Poll — re-read on a timer' },
+    { value: UpdateMode.Event, label: 'Events — re-read when playback changes' },
+];
+
+const updateModeField: SettingsField = {
+    key: 'update_mode',
+    type: 'select',
+    label: 'Update Mode',
+    description: 'Events react instantly and idle while a video plays; polling is steadier on sites that update quietly',
+    default: UpdateMode.Poll,
+    options: UPDATE_MODE_OPTIONS,
+    dependsOn: 'enabled',
+};
+
 // How often the presence client re-reads the page and pushes an update. Too
 // low burns CPU on every open tab for no visible gain — Discord itself is not
 // that responsive; too high makes seeking feel laggy in the status.
@@ -57,7 +75,9 @@ const updateIntervalField: SettingsField = {
     max: 60000,
     step: 500,
     unit: 'ms',
-    dependsOn: 'enabled',
+    // Meaningless in event mode, so it only shows while polling.
+    dependsOn: 'update_mode',
+    dependsValue: UpdateMode.Poll,
 };
 
 function statusDisplayField(fallback: StatusDisplayType): SettingsField {
@@ -87,23 +107,47 @@ export const SITE_SCHEMAS: Record<string, SiteSchema> = {
                 dependsOn: 'enabled',
             },
             statusDisplayField(StatusDisplayType.Details),
+            updateModeField,
             updateIntervalField,
         ],
     },
     'music.youtube.com': {
         label: 'YouTube Music',
         script: './scripts/youtube-music.js',
-        fields: [enabledField, statusDisplayField(StatusDisplayType.Details), updateIntervalField],
+        fields: [enabledField, statusDisplayField(StatusDisplayType.Details), updateModeField, updateIntervalField],
     },
     'www.twitch.tv': {
         label: 'Twitch',
         script: './scripts/twitch.js',
-        fields: [enabledField, statusDisplayField(StatusDisplayType.State), updateIntervalField],
+        fields: [enabledField, statusDisplayField(StatusDisplayType.State), updateModeField, updateIntervalField],
     },
 };
 
 export function fieldsFor(site: string): SettingsField[] {
     return SITE_SCHEMAS[site]?.fields ?? [];
+}
+
+// Visibility walks the whole dependency chain: a field is hidden when its
+// parent is hidden, not only when the parent's value fails the test. Without
+// that, disabling a site would leave the update interval on screen because
+// update_mode — the field it depends on — is itself only hidden, not unset.
+export function isFieldVisible(site: string, config: Config, field: SettingsField): boolean {
+    const seen = new Set<string>();
+    let current: SettingsField | undefined = field;
+
+    while (current?.dependsOn) {
+        if (seen.has(current.key)) return true; // cyclic schema — show rather than vanish
+        seen.add(current.key);
+
+        const value = (config as Record<string, unknown>)[current.dependsOn];
+        const passes = current.dependsValue === undefined ? Boolean(value) : value === current.dependsValue;
+        if (!passes) return false;
+
+        const parentKey: string = current.dependsOn;
+        current = fieldsFor(site).find((candidate) => candidate.key === parentKey);
+    }
+
+    return true;
 }
 
 export function labelFor(site: string): string {

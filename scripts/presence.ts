@@ -13,17 +13,17 @@ export type PresenceActivity = Activity
 const CORE_URL = 'ws://127.0.0.1:5579/ws'
 const MAX_RECONNECT_DELAY = 30000
 
-// getDelay is read each time the timer is armed rather than captured once, so
-// a config change takes effect on the next restart() instead of at reload.
-export function createPresenceClient(getActivity: () => PresenceActivity | null, getDelay: () => number) {
+// The client owns the socket, not the cadence: callers decide when to push
+// (a timer, or playback events). push() is cheap when nothing changed, since
+// an unchanged payload is never sent.
+export function createPresenceClient(getActivity: () => PresenceActivity | null) {
     let socket: WebSocket | undefined
-    let interval: ReturnType<typeof setInterval> | undefined
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectAttempts = 0
     let stopped = false
     let lastPayload: string | undefined
 
-    function update() {
+    function push() {
         if (socket?.readyState !== WebSocket.OPEN) return
         const activity = getActivity()
         const payload = JSON.stringify(activity == null ? { action: 'CLEAR' } : { action: 'SET', activity })
@@ -41,8 +41,7 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null,
             if (socket !== ws) return
             reconnectAttempts = 0
             lastPayload = undefined // server may have lost state — re-send current activity
-            armTimer()
-            update()
+            push()
         })
         ws.addEventListener('error', () => ws.close())
         ws.addEventListener('close', () => {
@@ -50,17 +49,8 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null,
             // replaced this one while its close event was still queued).
             if (socket !== ws) return
             socket = undefined
-            if (interval) {
-                clearInterval(interval)
-                interval = undefined
-            }
             scheduleReconnect()
         })
-    }
-
-    function armTimer() {
-        if (interval) clearInterval(interval)
-        interval = setInterval(update, getDelay())
     }
 
     function scheduleReconnect() {
@@ -78,10 +68,7 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null,
     function restart() {
         lastPayload = undefined
         connect()
-        // Pick up a changed update interval; connect() only arms the timer when
-        // it actually opens a socket, so an already-open one would keep the old.
-        if (interval) armTimer()
-        update()
+        push()
     }
 
     function stop() {
@@ -89,10 +76,6 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null,
         if (retryTimer) {
             clearTimeout(retryTimer)
             retryTimer = undefined
-        }
-        if (interval) {
-            clearInterval(interval)
-            interval = undefined
         }
         if (socket?.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ action: 'CLEAR' }))
@@ -102,5 +85,5 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null,
     }
 
     connect()
-    return { restart, stop }
+    return { push, restart, stop }
 }

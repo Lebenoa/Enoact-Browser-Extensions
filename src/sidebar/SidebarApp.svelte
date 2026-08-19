@@ -2,7 +2,7 @@
     import Toggle from './Toggle.svelte';
     import iconUrl from '../images/icon.png';
     import { fade } from 'svelte/transition';
-    import { coerceConfig, fieldsFor, labelFor } from '../settings-schema';
+    import { coerceConfig, fieldsFor, isFieldVisible, labelFor } from '../settings-schema';
     import type { BackgroundMessage, Config, SidebarMessage } from '../types';
 
     // The worker can sleep or die mid-request; without a deadline the panel
@@ -205,7 +205,7 @@
                             {#each fields as field (field.key)}
                                 {@const boolDraft = draft as Record<string, boolean>}
                                 {@const numDraft = draft as Record<string, number>}
-                                {#if !field.dependsOn || draft[field.dependsOn]}
+                                {#if isFieldVisible(currentTab, draft, field)}
                                     <div class="field {field.type === 'boolean' ? 'field-switch' : ''}" transition:fade>
                                         <div class="flex-1 min-w-0">
                                             <span class="field-label">{field.label}</span>
