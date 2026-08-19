@@ -1,45 +1,52 @@
+// Per-tab presence client: opens its own WebSocket to Enoact Core, so
+// multiple tabs can show simultaneous activities — Discord displays one
+// activity per distinct `name` (e.g. YouTube + Twitch at the same time).
+//
+// SET/CLEAR is sent only when the activity payload actually changes; the
+// current payload is re-sent after (re)connecting, since the server may
+// have lost state.
+
 export type PresenceActivity = Record<string, unknown>
+
+const CORE_URL = 'ws://127.0.0.1:5579/ws'
+const UPDATE_DELAY = 3000
+const MAX_RECONNECT_DELAY = 30000
 
 export function createPresenceClient(getActivity: () => PresenceActivity | null) {
     let socket: WebSocket | undefined
     let interval: ReturnType<typeof setInterval> | undefined
     let retryTimer: ReturnType<typeof setTimeout> | undefined
     let reconnectAttempts = 0
-    let cleared = true
     let stopped = false
+    let lastPayload: string | undefined
 
-    const updateDelay = 3000
-    const maxReconnectDelay = 30000
-
-    function clearPresence() {
-        if (socket?.readyState === WebSocket.OPEN && !cleared) {
-            socket.send(JSON.stringify({ action: 'CLEAR' }))
-            cleared = true
-        }
-    }
-
-    function scheduleReconnect() {
-        if (stopped || retryTimer) return
-        const delay = Math.min(2000 * 2 ** reconnectAttempts, maxReconnectDelay)
-        reconnectAttempts++
-        retryTimer = setTimeout(() => {
-            retryTimer = undefined
-            connect()
-        }, delay)
+    function update() {
+        if (socket?.readyState !== WebSocket.OPEN) return
+        const activity = getActivity()
+        const payload = JSON.stringify(activity == null ? { action: 'CLEAR' } : { action: 'SET', activity })
+        if (payload === lastPayload) return
+        lastPayload = payload
+        socket.send(payload)
     }
 
     function connect() {
         if (stopped || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return
 
-        socket = new WebSocket('ws://127.0.0.1:5579/ws')
-        socket.addEventListener('open', () => {
+        const ws = new WebSocket(CORE_URL)
+        socket = ws
+        ws.addEventListener('open', () => {
+            if (socket !== ws) return
             reconnectAttempts = 0
+            lastPayload = undefined // server may have lost state — re-send current activity
             if (interval) clearInterval(interval)
-            interval = setInterval(update, updateDelay)
+            interval = setInterval(update, UPDATE_DELAY)
             update()
         })
-        socket.addEventListener('error', () => socket?.close())
-        socket.addEventListener('close', () => {
+        ws.addEventListener('error', () => ws.close())
+        ws.addEventListener('close', () => {
+            // Ignore events from superseded sockets (a restart() may have
+            // replaced this one while its close event was still queued).
+            if (socket !== ws) return
             socket = undefined
             if (interval) {
                 clearInterval(interval)
@@ -49,28 +56,39 @@ export function createPresenceClient(getActivity: () => PresenceActivity | null)
         })
     }
 
-    function update() {
-        if (socket?.readyState !== WebSocket.OPEN) return
-        const activity = getActivity()
-        if (!activity) {
-            clearPresence()
-            return
-        }
-        socket.send(JSON.stringify({ action: 'SET', activity }))
-        cleared = false
+    function scheduleReconnect() {
+        if (stopped || retryTimer) return
+        const delay = Math.min(2000 * 2 ** reconnectAttempts, MAX_RECONNECT_DELAY)
+        reconnectAttempts++
+        retryTimer = setTimeout(() => {
+            retryTimer = undefined
+            connect()
+        }, delay)
     }
 
+    // Reset the change-detection and push immediately — used after SPA
+    // navigation or when the config changes (e.g. site toggled off).
     function restart() {
-        clearPresence()
+        lastPayload = undefined
         connect()
+        update()
     }
 
     function stop() {
         stopped = true
-        if (retryTimer) clearTimeout(retryTimer)
-        if (interval) clearInterval(interval)
-        clearPresence()
+        if (retryTimer) {
+            clearTimeout(retryTimer)
+            retryTimer = undefined
+        }
+        if (interval) {
+            clearInterval(interval)
+            interval = undefined
+        }
+        if (socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ action: 'CLEAR' }))
+        }
         socket?.close()
+        socket = undefined
     }
 
     connect()
