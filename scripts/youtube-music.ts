@@ -49,12 +49,18 @@ export default function initYouTubeMusic() {
         const details = response?.videoDetails
         const microformat = response?.microformat?.playerMicroformatRenderer
         const player = document.getElementById('movie_player') as any
+        const video = document.querySelector('video')
         const progress = document.querySelector("tp-yt-paper-slider[id='progress-bar'][value][aria-valuemax]")
         const playButton = (document.querySelector("yt-icon-button[id='play-pause-button'][title]") as HTMLElement | null)?.getAttribute('title')
         const videoId = details?.videoId
 
         const state = player?.getPlayerState?.()
-        const playing = state === 1 || state === 3 || (state === undefined && playButton === 'Pause')
+        // Prefer the live media element for playback state: the browser keeps
+        // media-element properties (currentTime, paused) current even in hidden
+        // tabs, while the player API's getters go stale there because their
+        // clocks are driven by page JS, which browsers throttle when the tab is
+        // unfocused. Embedded JSON stays the source for static metadata.
+        const playing = video ? !video.paused : state === 1 || state === 3 || (state === undefined && playButton === 'Pause')
 
         return {
             title: details?.title,
@@ -62,8 +68,8 @@ export default function initYouTubeMusic() {
             url: videoId ? `https://music.youtube.com/watch?v=${videoId}` : undefined,
             artist: details?.author,
             artist_url: details?.channelId ? `https://music.youtube.com/channel/${details.channelId}` : undefined,
-            duration: Number(details?.lengthSeconds ?? progress?.getAttribute('aria-valuemax') ?? 0),
-            current_time: Number(player?.getCurrentTime?.() ?? progress?.getAttribute('value') ?? 0),
+            duration: Number(details?.lengthSeconds ?? video?.duration ?? progress?.getAttribute('aria-valuemax') ?? 0),
+            current_time: Number(video?.currentTime ?? player?.getCurrentTime?.() ?? progress?.getAttribute('value') ?? 0),
             isPlaying: playing,
         }
     }

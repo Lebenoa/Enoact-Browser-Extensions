@@ -66,7 +66,12 @@ export default function initYouTube() {
 
         const author = config.channel_info ? details?.author : undefined
         const playerState = player?.getPlayerState?.()
-        const paused = playerState === undefined ? !!video?.paused : playerState !== 1 && playerState !== 3
+        // Prefer the live media element for playback state: the browser keeps
+        // media-element properties (currentTime, paused, duration) current even
+        // in hidden tabs, while the player API's getters go stale there because
+        // their clocks are driven by page JS, which browsers throttle when the
+        // tab is unfocused. Embedded JSON stays the source for static metadata.
+        const paused = video ? !!video.paused : playerState !== 1 && playerState !== 3
 
         return {
             title: details?.title,
@@ -74,8 +79,8 @@ export default function initYouTube() {
                 microformat?.thumbnail?.thumbnails?.[0]?.url ??
                 (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : undefined),
             url: videoId ? `https://youtu.be/${videoId}` : undefined,
-            duration: Number(details?.lengthSeconds ?? player?.getDuration?.() ?? video?.duration ?? 0),
-            current_time: Number(player?.getCurrentTime?.() ?? video?.currentTime ?? 0),
+            duration: Number(details?.lengthSeconds ?? video?.duration ?? player?.getDuration?.() ?? 0),
+            current_time: Number(video?.currentTime ?? player?.getCurrentTime?.() ?? 0),
             isLive: !!details?.isLiveContent || !!microformat?.liveBroadcastDetails?.isLiveNow,
             paused,
             state: author ?? (paused ? 'Paused' : 'Playing'),
