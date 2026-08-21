@@ -11,6 +11,16 @@
 
     const logo = iconUrl;
 
+    const faviconMap: Record<string, string> = {
+        youtube: 'youtube.com',
+        'youtube-music': 'music.youtube.com',
+        twitch: 'twitch.tv',
+    };
+    function getFaviconUrl(site: string): string {
+        const domain = faviconMap[site] || site + '.com';
+        return `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
+    }
+
     type Status = 'loading' | 'ready' | 'saving' | 'error';
 
     let port: chrome.runtime.Port | undefined;
@@ -141,8 +151,11 @@
                         {#each sitesAvailable as { name, enabled } (name)}
                             <li class="site-row">
                                 <span class="site-rail {enabled ? 'site-rail-live' : ''}"></span>
-                                <button class="site-main" onclick={() => openSite(name)}>
-                                    <span class="site-name">{labelFor(name)}</span>
+                                <button class="site-main flex items-center gap-2" onclick={() => openSite(name)}>
+                                    <div class="flex flex-row gap-2 items-center">
+                                        <img class="site-favicon w-4 h-4" src={`https://www.google.com/s2/favicons?domain=${name}&sz=16`} alt="" />
+                                        <span class="site-name">{labelFor(name)}</span>
+                                    </div>
                                     <span class="site-host">{name}</span>
                                 </button>
                                 <div class="site-side">
