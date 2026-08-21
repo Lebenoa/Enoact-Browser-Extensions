@@ -11,16 +11,6 @@
 
     const logo = iconUrl;
 
-    const faviconMap: Record<string, string> = {
-        youtube: 'youtube.com',
-        'youtube-music': 'music.youtube.com',
-        twitch: 'twitch.tv',
-    };
-    function getFaviconUrl(site: string): string {
-        const domain = faviconMap[site] || site + '.com';
-        return `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
-    }
-
     type Status = 'loading' | 'ready' | 'saving' | 'error';
 
     let port: chrome.runtime.Port | undefined;
