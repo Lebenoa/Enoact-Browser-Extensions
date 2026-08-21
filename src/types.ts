@@ -4,6 +4,9 @@ import type { StatusDisplayType } from './activity';
 export enum UpdateMode {
     // Re-read on a fixed timer. Predictable, works no matter how a site
     // updates itself, but does the work whether or not anything changed.
+    // The steady cadence also keeps the activity on top: each re-push
+    // refreshes it, while an event-driven activity goes silent during
+    // uninterrupted playback and gets overtaken by whatever updates next.
     Poll = 0,
     // Re-read when playback state actually changes (play/pause/seek/track
     // change). Idle while a video plays straight through, since Discord
