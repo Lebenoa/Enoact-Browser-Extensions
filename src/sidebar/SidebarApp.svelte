@@ -211,8 +211,8 @@
                             <!-- Fields come from the schema, not from whichever keys the
                                  stored config happens to carry. -->
                             {#each fields as field (field.key)}
-                                {@const boolDraft = draft as Record<string, boolean>}
-                                {@const numDraft = draft as Record<string, number>}
+                                {@const boolDraft = draft as unknown as Record<string, boolean>}
+                                {@const numDraft = draft as unknown as Record<string, number>}
                                 {#if isFieldVisible(currentTab, draft, field)}
                                     <div class="field {field.type === 'boolean' ? 'field-switch' : ''}" transition:fade>
                                         <div class="flex-1 min-w-0">
