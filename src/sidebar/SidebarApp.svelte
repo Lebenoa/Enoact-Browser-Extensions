@@ -116,7 +116,12 @@
         e.preventDefault();
         if (!draft) return;
         awaitReply('saving', 'Saving timed out — the settings may not have been stored.');
-        const message: SidebarMessage = { type: 'UPDATE_SETTINGS', name: currentTab, settings: draft };
+        // $state deep-proxies its values, and port messages are
+        // structured-cloned — Firefox throws DataCloneError on a proxy, which
+        // send() would mislabel as a lost connection. $state.snapshot returns
+        // a plain, cloneable copy.
+        const plain = $state.snapshot(draft);
+        const message: SidebarMessage = { type: 'UPDATE_SETTINGS', name: currentTab, settings: plain };
         if (!send(message)) settle('error', 'Lost the connection to the extension.');
     }
 </script>
